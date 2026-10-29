@@ -74,7 +74,7 @@ struct DiskMonitorTests {
         let monitor = makeMonitor(scanner: scanner)
 
         let first = Task { await monitor.refresh() }
-        await Task.detached { scanner.started.wait() }.value
+        await waitForSignal(scanner.started)
         #expect(monitor.isRefreshing == true)
 
         await monitor.refresh()
@@ -176,6 +176,15 @@ struct DiskMonitorTests {
 
         #expect(monitor.disks.count == 1)
         #expect(monitor.errorMessage?.contains("Could not save history") == true)
+    }
+
+    private func waitForSignal(_ semaphore: DispatchSemaphore) async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                semaphore.wait()
+                continuation.resume()
+            }
+        }
     }
 }
 

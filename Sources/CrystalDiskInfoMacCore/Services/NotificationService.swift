@@ -8,11 +8,11 @@ public protocol NotificationDelivering {
 public protocol UserNotificationCentering {
     func requestAuthorization(
         options: UNAuthorizationOptions,
-        completionHandler: @escaping (Bool, Error?) -> Void
+        completionHandler: @escaping @Sendable (Bool, Error?) -> Void
     )
     func add(
         _ request: UNNotificationRequest,
-        withCompletionHandler completionHandler: ((Error?) -> Void)?
+        withCompletionHandler completionHandler: (@Sendable (Error?) -> Void)?
     )
 }
 
