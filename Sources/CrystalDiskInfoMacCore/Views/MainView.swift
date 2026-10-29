@@ -1,7 +1,9 @@
 import SwiftUI
+import Combine
 
 public struct MainView: View {
     @ObservedObject private var model: DiskMonitor
+    @StateObject private var state = MainViewState()
 
     public init(model: DiskMonitor) {
         self._model = ObservedObject(wrappedValue: model)
@@ -29,14 +31,22 @@ public struct MainView: View {
                     }
 
                     if let disk = model.selectedDisk {
-                        StatusCardsView(disk: disk)
-                        IdentityGridView(disk: disk)
+                        switch state.section {
+                        case .overview:
+                            StatusCardsView(disk: disk)
+                            IdentityGridView(disk: disk)
+                            Spacer(minLength: 0)
+                        case .smart:
+                            SmartTableView(attributes: disk.attributes)
+                                .frame(maxHeight: .infinity)
+                        }
+                    } else {
+                        Spacer(minLength: 0)
                     }
                 } else {
                     emptyState
                 }
 
-                Spacer(minLength: 0)
                 footer
             }
             .padding(24)
@@ -56,7 +66,18 @@ public struct MainView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
+            Spacer(minLength: 12)
+
+            Picker("View", selection: $state.section) {
+                ForEach(MainSection.allCases) { item in
+                    Text(item.rawValue).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 190)
+
+            Spacer(minLength: 12)
 
             if model.isRefreshing {
                 ProgressView()
@@ -175,4 +196,17 @@ private enum BannerStyle {
         }
     }
 }
+
+private enum MainSection: String, CaseIterable, Identifiable {
+    case overview = "Overview"
+    case smart = "SMART"
+
+    var id: String { rawValue }
+}
+
+@MainActor
+private final class MainViewState: ObservableObject {
+    @Published var section: MainSection = .overview
+}
+
 
