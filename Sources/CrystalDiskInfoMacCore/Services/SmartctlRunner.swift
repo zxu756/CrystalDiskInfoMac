@@ -180,7 +180,8 @@ public final class SmartctlRunner: SmartctlRunning {
     }
 
     private static func isUsable(_ report: SmartctlReport) -> Bool {
-        guard let model = report.modelName, !model.isEmpty else { return false }
+        let identity = report.modelName ?? report.scsiModelName
+        guard let identity, !identity.isEmpty else { return false }
         return report.smartStatus != nil
             || report.nvmeSmartHealthInformationLog != nil
             || report.ataSmartAttributes?.table != nil

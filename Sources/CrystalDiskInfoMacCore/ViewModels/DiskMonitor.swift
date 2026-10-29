@@ -24,6 +24,8 @@ public final class DiskMonitor: ObservableObject {
     private let notificationPolicy: NotificationPolicy
     private let now: () -> Date
     private var refreshTask: Task<Void, Never>?
+    private var failureCounts: [String: Int] = [:]
+    private var hasPrunedHistory = false
 
     public init(
         scanner: DiskScanning,
@@ -72,7 +74,10 @@ public final class DiskMonitor: ObservableObject {
             return
         }
         selectedDiskID = id
-        loadHistory(for: id)
+        historySamples = []
+        Task { [weak self] in
+            await self?.loadHistory(for: id)
+        }
     }
 
     public func refresh() async {
@@ -80,7 +85,12 @@ public final class DiskMonitor: ObservableObject {
             return
         }
         isRefreshing = true
-        defer { isRefreshing = false }
+        defer {
+            isRefreshing = false
+            if refreshTask != nil {
+                startAutoRefresh()
+            }
+        }
 
         let scanner = self.scanner
         let policy = settings.temperaturePolicy
@@ -90,9 +100,15 @@ public final class DiskMonitor: ObservableObject {
         }.value
         smartctlStatus = status
 
-        if status == .notInstalled {
+        switch status {
+        case .notInstalled:
             errorMessage = SmartctlError.notInstalled.errorDescription
             return
+        case .unsupported(let version):
+            errorMessage = SmartctlError.unsupportedVersion(version).errorDescription
+            return
+        default:
+            break
         }
 
         let scanned: [DiskInfo]
@@ -105,7 +121,7 @@ public final class DiskMonitor: ObservableObject {
             return
         }
 
-        applyScan(scanned)
+        await applyScan(scanned)
     }
 
     public func apply(settings newSettings: AppSettings) {
@@ -143,37 +159,56 @@ public final class DiskMonitor: ObservableObject {
         refreshTask = nil
     }
 
-    private func applyScan(_ scanned: [DiskInfo]) {
+    private func applyScan(_ scanned: [DiskInfo]) async {
         let timestamp = now()
-        disks = scanned
+        let reconciled = reconcile(scanned)
+        disks = reconciled
         lastRefresh = timestamp
 
-        if selectedDiskID == nil || !scanned.contains(where: { $0.id == selectedDiskID }) {
-            selectedDiskID = scanned.first?.id
+        if selectedDiskID == nil || !reconciled.contains(where: { $0.id == selectedDiskID }) {
+            selectedDiskID = reconciled.first?.id
         }
 
-        var historyError: String?
-        for disk in scanned {
-            let sample = HistorySample(
-                timestamp: timestamp,
-                health: disk.health,
-                temperatureCelsius: disk.temperatureCelsius,
-                lifePercent: disk.lifePercent,
-                powerOnHours: disk.powerOnHours
-            )
-            do {
-                try history.append(sample, for: disk.id)
-            } catch {
-                if historyError == nil {
-                    historyError = "Could not save history: \(error.localizedDescription)"
+        let history = self.history
+        let shouldPruneHistory = !hasPrunedHistory
+        hasPrunedHistory = true
+        let writes: [(HistorySample, String)] = reconciled
+            .filter { !$0.isStale }
+            .map { disk in
+                (
+                    HistorySample(
+                        timestamp: timestamp,
+                        health: disk.health,
+                        temperatureCelsius: disk.temperatureCelsius,
+                        lifePercent: disk.lifePercent,
+                        powerOnHours: disk.powerOnHours
+                    ),
+                    disk.id
+                )
+            }
+
+        let historyError: String? = await Task.detached(priority: .utility) {
+            if shouldPruneHistory {
+                try? history.prune(now: timestamp)
+            }
+
+            var firstError: String?
+            for (sample, diskID) in writes {
+                do {
+                    try history.append(sample, for: diskID)
+                } catch {
+                    if firstError == nil {
+                        firstError = "Could not save history: \(error.localizedDescription)"
+                    }
                 }
             }
-        }
+            return firstError
+        }.value
 
-        loadHistory(for: selectedDiskID)
+        await loadHistory(for: selectedDiskID)
 
         let pendingNotifications = notificationPolicy.evaluate(
-            disks: scanned,
+            disks: reconciled,
             notificationsEnabled: settings.notificationsEnabled
         )
         if let notifications {
@@ -192,17 +227,104 @@ public final class DiskMonitor: ObservableObject {
         return "Unable to refresh disks: \(error.localizedDescription)"
     }
 
-    private func loadHistory(for diskID: String?) {
+    private func loadHistory(for diskID: String?) async {
         guard let diskID else {
             historySamples = []
             return
         }
 
-        do {
-            historySamples = try history.samples(for: diskID)
-        } catch {
-            historySamples = []
+        let history = self.history
+        let samples = await Task.detached(priority: .utility) {
+            (try? history.samples(for: diskID)) ?? []
+        }.value
+
+        if selectedDiskID == diskID {
+            historySamples = samples
         }
+    }
+
+    private func reconcile(_ scanned: [DiskInfo]) -> [DiskInfo] {
+        scanned.map { disk in
+            guard disk.health == .unknown else {
+                failureCounts[disk.id] = 0
+                return disk
+            }
+
+            guard let previous = disks.first(where: { $0.bsdName == disk.bsdName }) else {
+                failureCounts[disk.id] = max(failureCounts[disk.id] ?? 0, 1)
+                return disk
+            }
+
+            let failures = (failureCounts[previous.id] ?? 0) + 1
+            failureCounts[previous.id] = failures
+
+            if failures < 2 {
+                return staleCopy(of: previous, error: disk.readError, failures: failures)
+            }
+
+            return unknownCopy(of: previous, error: disk.readError, failures: failures)
+        }
+    }
+
+    private func staleCopy(of previous: DiskInfo, error: String?, failures: Int) -> DiskInfo {
+        DiskInfo(
+            id: previous.id,
+            bsdName: previous.bsdName,
+            model: previous.model,
+            serial: previous.serial,
+            firmware: previous.firmware,
+            protocolName: previous.protocolName,
+            interfaceName: previous.interfaceName,
+            capacityBytes: previous.capacityBytes,
+            isInternal: previous.isInternal,
+            smartStatus: previous.smartStatus,
+            health: previous.health,
+            temperatureCelsius: previous.temperatureCelsius,
+            temperatureWarningCelsius: previous.temperatureWarningCelsius,
+            temperatureCriticalCelsius: previous.temperatureCriticalCelsius,
+            lifePercent: previous.lifePercent,
+            powerOnHours: previous.powerOnHours,
+            powerCycleCount: previous.powerCycleCount,
+            unsafeShutdowns: previous.unsafeShutdowns,
+            mediaErrors: previous.mediaErrors,
+            attributes: previous.attributes,
+            readError: error,
+            isStale: true,
+            consecutiveFailures: failures,
+            healthReasons: previous.healthReasons,
+            diagnostics: previous.diagnostics
+        )
+    }
+
+    private func unknownCopy(of previous: DiskInfo, error: String?, failures: Int) -> DiskInfo {
+        let reason = error ?? "SMART data could not be read."
+        return DiskInfo(
+            id: previous.id,
+            bsdName: previous.bsdName,
+            model: previous.model,
+            serial: previous.serial,
+            firmware: previous.firmware,
+            protocolName: previous.protocolName,
+            interfaceName: previous.interfaceName,
+            capacityBytes: previous.capacityBytes,
+            isInternal: previous.isInternal,
+            smartStatus: .unknown,
+            health: .unknown,
+            temperatureCelsius: nil,
+            temperatureWarningCelsius: previous.temperatureWarningCelsius,
+            temperatureCriticalCelsius: previous.temperatureCriticalCelsius,
+            lifePercent: nil,
+            powerOnHours: nil,
+            powerCycleCount: nil,
+            unsafeShutdowns: nil,
+            mediaErrors: nil,
+            attributes: [],
+            readError: reason,
+            isStale: true,
+            consecutiveFailures: failures,
+            healthReasons: [reason],
+            diagnostics: []
+        )
     }
 }
 

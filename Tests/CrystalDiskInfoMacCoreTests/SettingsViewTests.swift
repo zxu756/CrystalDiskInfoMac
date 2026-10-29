@@ -116,10 +116,24 @@ struct SettingsViewTests {
         let manager = FakeLaunchAtLogin(isEnabled: false)
         let state = SettingsViewState(settings: .standard, launchAtLogin: manager)
 
-        state.setLaunchAtLogin(true, using: manager)
+        state.draft.launchAtLogin = true
+        let applied = state.applyLaunchAtLogin(using: manager)
 
+        #expect(applied)
+        #expect(manager.isEnabled == true)
         #expect(state.draft.launchAtLogin == true)
         #expect(state.launchAtLoginError == nil)
+    }
+
+    @MainActor
+    @Test func togglingLaunchAtLoginIsStagedUntilSave() {
+        let manager = FakeLaunchAtLogin(isEnabled: false)
+        let state = SettingsViewState(settings: .standard, launchAtLogin: manager)
+
+        state.draft.launchAtLogin = true
+
+        #expect(manager.isEnabled == false)
+        #expect(state.draft.launchAtLogin == true)
     }
 
     @MainActor
@@ -130,9 +144,11 @@ struct SettingsViewTests {
         )
         let state = SettingsViewState(settings: .standard, launchAtLogin: manager)
 
-        state.setLaunchAtLogin(true, using: manager)
+        state.draft.launchAtLogin = true
+        let applied = state.applyLaunchAtLogin(using: manager)
 
+        #expect(applied == false)
         #expect(state.launchAtLoginError?.contains("approval") == true)
-        #expect(state.draft.launchAtLogin == false)
+        #expect(state.draft.launchAtLogin == true)
     }
 }

@@ -126,6 +126,22 @@ struct HistoryChartTests {
         #expect(series.lifeSegments.count == 1)
     }
 
+    @Test func downsamplingLimitsRenderPointsAndKeepsEndpoints() {
+        let samples = (0..<43_200).map { index in
+            sample(
+                at: now.addingTimeInterval(-Double(43_199 - index) * 60),
+                temperature: 36,
+                life: 95
+            )
+        }
+
+        let downsampled = HistorySeries.downsampled(samples, maxPoints: 600)
+
+        #expect(downsampled.count <= 600)
+        #expect(downsampled.first?.timestamp == samples.first?.timestamp)
+        #expect(downsampled.last?.timestamp == samples.last?.timestamp)
+    }
+
     @Test func automaticGapThresholdAdaptsToCadence() {
         let oneMinute = (0..<10).map {
             sample(at: now.addingTimeInterval(-Double($0) * 60))

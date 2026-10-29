@@ -4,6 +4,7 @@ public enum SmartctlAvailability: Equatable, Sendable {
     case unknown
     case available(version: String, path: String)
     case notInstalled
+    case unsupported(version: String)
     case failed(String)
 }
 
@@ -92,10 +93,14 @@ public final class DiskScanner: DiskScanning {
             let version = try runner.version()
             return .available(version: version, path: url.path)
         } catch let error as SmartctlError {
-            if case .notInstalled = error {
+            switch error {
+            case .notInstalled:
                 return .notInstalled
+            case .unsupportedVersion(let version):
+                return .unsupported(version: version)
+            default:
+                return .failed(error.localizedDescription)
             }
-            return .failed(error.localizedDescription)
         } catch {
             return .failed(error.localizedDescription)
         }

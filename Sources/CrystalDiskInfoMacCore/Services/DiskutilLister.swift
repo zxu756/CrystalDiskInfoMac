@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// A physical whole disk discovered through `diskutil`.
 public struct DiskCandidate: Equatable, Sendable {
@@ -54,14 +55,23 @@ public final class DiskutilLister: DiskListing {
     public typealias CommandRunner = (URL, [String]) throws -> Data
 
     private let diskutilURL: URL
+    private let timeout: TimeInterval
     private let runner: CommandRunner
 
     public init(
         diskutilURL: URL = URL(fileURLWithPath: "/usr/sbin/diskutil"),
+        timeout: TimeInterval = 10,
         runner: CommandRunner? = nil
     ) {
         self.diskutilURL = diskutilURL
-        self.runner = runner ?? Self.runProcess
+        self.timeout = timeout
+        self.runner = runner ?? { executable, arguments in
+            try Self.runProcess(
+                executable: executable,
+                arguments: arguments,
+                timeout: timeout
+            )
+        }
     }
 
     public func physicalDisks() throws -> [DiskCandidate] {
@@ -73,10 +83,15 @@ public final class DiskutilLister: DiskListing {
         candidates.reserveCapacity(names.count)
 
         for name in names {
-            let infoData = try runner(diskutilURL, ["info", "-plist", "/dev/\(name)"])
-            let info = try Self.plistDictionary(from: infoData)
-            if let candidate = Self.makeCandidate(bsdName: name, info: info) {
-                candidates.append(candidate)
+            do {
+                let infoData = try runner(diskutilURL, ["info", "-plist", "/dev/\(name)"])
+                let info = try Self.plistDictionary(from: infoData)
+                if let candidate = Self.makeCandidate(bsdName: name, info: info) {
+                    candidates.append(candidate)
+                }
+            } catch DiskutilError.commandFailed {
+                // The disk may have been unplugged between list and info.
+                continue
             }
         }
 
@@ -123,7 +138,7 @@ public final class DiskutilLister: DiskListing {
             return nil
         }
 
-        if let whole = info["Whole"] as? Bool, whole == false {
+        if let whole = info["WholeDisk"] as? Bool, whole == false {
             return nil
         }
 
@@ -175,7 +190,28 @@ public final class DiskutilLister: DiskListing {
         }
     }
 
-    private static func runProcess(executable: URL, arguments: [String]) throws -> Data {
+    private final class DataBox {
+        private let lock = NSLock()
+        private var data = Data()
+
+        func set(_ newData: Data) {
+            lock.lock()
+            data = newData
+            lock.unlock()
+        }
+
+        var value: Data {
+            lock.lock()
+            defer { lock.unlock() }
+            return data
+        }
+    }
+
+    private static func runProcess(
+        executable: URL,
+        arguments: [String],
+        timeout: TimeInterval
+    ) throws -> Data {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
@@ -186,16 +222,45 @@ public final class DiskutilLister: DiskListing {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        let termination = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in termination.signal() }
+
         do {
             try process.run()
         } catch {
             throw DiskutilError.commandFailed(error.localizedDescription)
         }
 
-        process.waitUntilExit()
+        let stdoutBox = DataBox()
+        let stderrBox = DataBox()
+        let stdoutDone = DispatchSemaphore(value: 0)
+        let stderrDone = DispatchSemaphore(value: 0)
 
-        let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        DispatchQueue.global(qos: .utility).async {
+            stdoutBox.set(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+            stdoutDone.signal()
+        }
+        DispatchQueue.global(qos: .utility).async {
+            stderrBox.set(stderrPipe.fileHandleForReading.readDataToEndOfFile())
+            stderrDone.signal()
+        }
+
+        if termination.wait(timeout: .now() + max(timeout, 0)) == .timedOut {
+            process.terminate()
+            if termination.wait(timeout: .now() + 0.5) == .timedOut {
+                kill(process.processIdentifier, SIGKILL)
+                _ = termination.wait(timeout: .now() + 1)
+            }
+            _ = stdoutDone.wait(timeout: .now() + 1)
+            _ = stderrDone.wait(timeout: .now() + 1)
+            throw DiskutilError.commandFailed("diskutil timed out")
+        }
+
+        _ = stdoutDone.wait(timeout: .now() + 1)
+        _ = stderrDone.wait(timeout: .now() + 1)
+
+        let stdout = stdoutBox.value
+        let stderr = stderrBox.value
 
         guard process.terminationStatus == 0 else {
             let message = String(decoding: stderr, as: UTF8.self)

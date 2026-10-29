@@ -151,10 +151,12 @@ public enum HealthEvaluator {
         guard policy.useDriveLimits else {
             return (policy.warningCelsius, policy.criticalCelsius)
         }
-        return (
-            report.temperature?.opLimitMax ?? policy.warningCelsius,
-            report.temperature?.criticalLimitMax ?? policy.criticalCelsius
-        )
+        guard let warning = report.temperature?.opLimitMax,
+              let critical = report.temperature?.criticalLimitMax,
+              warning < critical else {
+            return (policy.warningCelsius, policy.criticalCelsius)
+        }
+        return (warning, critical)
     }
 
     private static func resolveTemperature(_ report: SmartctlReport) -> Int? {
@@ -191,9 +193,6 @@ public enum HealthEvaluator {
             }
         }
 
-        if let current = attribute.value, (0...120).contains(current) {
-            return current
-        }
         return nil
     }
 

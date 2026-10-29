@@ -6,6 +6,18 @@ struct DiskSelectorView: View {
     let onSelect: (String) -> Void
 
     var body: some View {
+        if disks.count > 4 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                row
+            }
+            .frame(height: 58)
+        } else {
+            row
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: 10) {
             ForEach(disks) { disk in
                 Button {
@@ -50,6 +62,5 @@ struct DiskSelectorView: View {
                 .accessibilityLabel("\(disk.model), \(disk.health.displayName)")
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

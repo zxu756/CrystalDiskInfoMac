@@ -130,6 +130,75 @@ struct DiskMonitorTests {
         #expect(monitor.lastRefresh == firstRefresh)
     }
 
+    @Test func unsupportedVersionSkipsScanAndKeepsDisks() async {
+        let disk = TestFixtures.disk(id: "disk0-id", bsdName: "disk0")
+        let scanner = MockScanner(disks: [disk])
+        let monitor = makeMonitor(scanner: scanner)
+
+        await monitor.refresh()
+        #expect(scanner.numberOfScans == 1)
+
+        scanner.setStatus(.unsupported(version: "7.3"))
+        await monitor.refresh()
+
+        #expect(scanner.numberOfScans == 1)
+        #expect(monitor.disks.count == 1)
+        #expect(monitor.smartctlStatus == .unsupported(version: "7.3"))
+        #expect(monitor.errorMessage?.contains("too old") == true)
+    }
+
+    @Test func transientFailureKeepsStableIdentityAndLastKnownData() async {
+        let good = TestFixtures.disk(
+            id: "stable-id",
+            bsdName: "disk4",
+            health: .good,
+            temperatureCelsius: 41
+        )
+        let failed = TestFixtures.disk(
+            id: "disk4",
+            bsdName: "disk4",
+            smartStatus: .unknown,
+            health: .unknown,
+            temperatureCelsius: nil,
+            lifePercent: nil,
+            readError: "smartctl timed out"
+        )
+        let scanner = MockScanner(disks: [good])
+        let history = RecordingHistoryStore()
+        let monitor = makeMonitor(scanner: scanner, history: history)
+
+        await monitor.refresh()
+        #expect((try? history.samples(for: "stable-id"))?.count == 1)
+
+        scanner.setResult(.success([failed]))
+        await monitor.refresh()
+
+        #expect(monitor.disks.first?.id == "stable-id")
+        #expect(monitor.disks.first?.health == .good)
+        #expect(monitor.disks.first?.isStale == true)
+        #expect(monitor.disks.first?.consecutiveFailures == 1)
+        #expect(monitor.disks.first?.readError == "smartctl timed out")
+        #expect(monitor.selectedDiskID == "stable-id")
+        #expect((try? history.samples(for: "stable-id"))?.count == 1)
+
+        await monitor.refresh()
+
+        #expect(monitor.disks.first?.id == "stable-id")
+        #expect(monitor.disks.first?.health == .unknown)
+        #expect(monitor.disks.first?.isStale == true)
+        #expect(monitor.disks.first?.consecutiveFailures == 2)
+        #expect((try? history.samples(for: "stable-id"))?.count == 1)
+
+        scanner.setResult(.success([good]))
+        await monitor.refresh()
+
+        #expect(monitor.disks.first?.id == "stable-id")
+        #expect(monitor.disks.first?.health == .good)
+        #expect(monitor.disks.first?.isStale == false)
+        #expect(monitor.disks.first?.consecutiveFailures == 0)
+        #expect((try? history.samples(for: "stable-id"))?.count == 2)
+    }
+
     @Test func selectedDiskStaysStableWhenStillPresent() async {
         let disk0 = TestFixtures.disk(id: "disk0-id", bsdName: "disk0")
         let disk4 = TestFixtures.disk(id: "disk4-id", bsdName: "disk4", isInternal: false)

@@ -8,14 +8,18 @@ struct NotificationPolicyTests {
         health: HealthStatus = .good,
         temperature: Int? = 40,
         warning: Int = 50,
-        critical: Int = 60
+        critical: Int = 60,
+        mediaErrors: Int? = 0,
+        consecutiveFailures: Int = 0
     ) -> DiskInfo {
         TestFixtures.disk(
             id: id,
             health: health,
             temperatureCelsius: temperature,
             temperatureWarningCelsius: warning,
-            temperatureCriticalCelsius: critical
+            temperatureCriticalCelsius: critical,
+            mediaErrors: mediaErrors,
+            consecutiveFailures: consecutiveFailures
         )
     }
 
@@ -52,6 +56,35 @@ struct NotificationPolicyTests {
         #expect(notifications.first?.kind == .unknown)
 
         #expect(policy.evaluate(disks: [disk(health: .unknown)]).isEmpty)
+    }
+
+    @Test func mediaErrorIncreaseNotifiesOnce() {
+        let policy = NotificationPolicy()
+
+        #expect(policy.evaluate(disks: [disk(mediaErrors: 0)]).isEmpty)
+
+        let notifications = policy.evaluate(disks: [disk(mediaErrors: 3)])
+        #expect(notifications.count == 1)
+        #expect(notifications.first?.kind == .mediaErrors)
+        #expect(notifications.first?.title.contains("Test Disk") == true)
+        #expect(notifications.first?.body.contains("0 to 3") == true)
+
+        #expect(policy.evaluate(disks: [disk(mediaErrors: 3)]).isEmpty)
+
+        let increasedAgain = policy.evaluate(disks: [disk(mediaErrors: 5)])
+        #expect(increasedAgain.count == 1)
+        #expect(increasedAgain.first?.body.contains("3 to 5") == true)
+    }
+
+    @Test func consecutiveFailureGraceNotifiesEvenAfterOneUnknownObservation() {
+        let policy = NotificationPolicy()
+        _ = policy.evaluate(disks: [disk(health: .good)])
+
+        let notifications = policy.evaluate(
+            disks: [disk(health: .unknown, consecutiveFailures: 2)]
+        )
+        #expect(notifications.count == 1)
+        #expect(notifications.first?.kind == .unknown)
     }
 
     @Test func removalAfterTwoMissesNotifiesOnce() {

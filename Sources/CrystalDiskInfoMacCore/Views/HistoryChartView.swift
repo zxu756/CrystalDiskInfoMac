@@ -93,6 +93,34 @@ public struct HistorySeries: Equatable, Sendable {
         return min(max(median * 2.5, 60), 3_600)
     }
 
+    /// Downsamples a single contiguous segment for rendering while preserving
+    /// its first and last points. The model still retains every sample.
+    public static func downsampled(
+        _ samples: [HistorySample],
+        maxPoints: Int
+    ) -> [HistorySample] {
+        guard maxPoints > 1, samples.count > maxPoints else {
+            return samples
+        }
+
+        let step = max(1, Int(ceil(Double(samples.count) / Double(maxPoints))))
+        var result: [HistorySample] = []
+        var index = 0
+        while index < samples.count {
+            result.append(samples[index])
+            index += step
+        }
+
+        if let last = samples.last, result.last?.timestamp != last.timestamp {
+            if result.count >= maxPoints {
+                result.removeLast()
+            }
+            result.append(last)
+        }
+
+        return result
+    }
+
     private static func segments(
         in samples: [HistorySample],
         gapThreshold: TimeInterval,
@@ -217,14 +245,24 @@ public struct HistoryChartView: View {
                     Array(series.temperatureSegments.enumerated()),
                     id: \.offset
                 ) { index, segment in
-                    ForEach(Array(segment.enumerated()), id: \.offset) { _, sample in
-                        LineMark(
+                    let points = HistorySeries.downsampled(segment, maxPoints: 600)
+                    if points.count == 1, let sample = points.first {
+                        PointMark(
                             x: .value("Time", sample.timestamp),
-                            y: .value("Temperature", Double(sample.temperatureCelsius ?? 0)),
-                            series: .value("Segment", index)
+                            y: .value("Temperature", Double(sample.temperatureCelsius ?? 0))
                         )
                         .foregroundStyle(Theme.accent)
-                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .symbolSize(18)
+                    } else {
+                        ForEach(Array(points.enumerated()), id: \.offset) { _, sample in
+                            LineMark(
+                                x: .value("Time", sample.timestamp),
+                                y: .value("Temperature", Double(sample.temperatureCelsius ?? 0)),
+                                series: .value("Segment", index)
+                            )
+                            .foregroundStyle(Theme.accent)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                        }
                     }
                 }
 
@@ -274,14 +312,24 @@ public struct HistoryChartView: View {
                     Array(series.lifeSegments.enumerated()),
                     id: \.offset
                 ) { index, segment in
-                    ForEach(Array(segment.enumerated()), id: \.offset) { _, sample in
-                        LineMark(
+                    let points = HistorySeries.downsampled(segment, maxPoints: 600)
+                    if points.count == 1, let sample = points.first {
+                        PointMark(
                             x: .value("Time", sample.timestamp),
-                            y: .value("Life", Double(sample.lifePercent ?? 0)),
-                            series: .value("Segment", index)
+                            y: .value("Life", Double(sample.lifePercent ?? 0))
                         )
                         .foregroundStyle(tint)
-                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .symbolSize(18)
+                    } else {
+                        ForEach(Array(points.enumerated()), id: \.offset) { _, sample in
+                            LineMark(
+                                x: .value("Time", sample.timestamp),
+                                y: .value("Life", Double(sample.lifePercent ?? 0)),
+                                series: .value("Segment", index)
+                            )
+                            .foregroundStyle(tint)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                        }
                     }
                 }
             }

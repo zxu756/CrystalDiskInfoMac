@@ -12,13 +12,14 @@ final class SettingsViewState: ObservableObject {
         self.draft = draft
     }
 
-    func setLaunchAtLogin(_ enabled: Bool, using manager: LaunchAtLoginManaging) {
+    func applyLaunchAtLogin(using manager: LaunchAtLoginManaging) -> Bool {
         do {
-            try manager.setEnabled(enabled)
-            draft.launchAtLogin = enabled
+            try manager.setEnabled(draft.launchAtLogin)
             launchAtLoginError = nil
+            return true
         } catch {
             launchAtLoginError = error.localizedDescription
+            return false
         }
     }
 }
@@ -124,6 +125,14 @@ public struct SettingsView: View {
                 Section("smartctl") {
                     smartctlStatusView
                 }
+
+                Section("About") {
+                    LabeledContent("Version", value: "0.1.0")
+                    Text("Inspired by CrystalDiskInfo (MIT, hiyohiyo). smartctl is a separate GPLv2 executable from smartmontools and is not bundled with this app.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .formStyle(.grouped)
 
@@ -135,6 +144,9 @@ public struct SettingsView: View {
                 Button("Cancel", action: onCancel)
 
                 Button("Save") {
+                    guard state.applyLaunchAtLogin(using: launchAtLogin) else {
+                        return
+                    }
                     onSave(state.draft.validated())
                 }
                 .keyboardShortcut(.defaultAction)
@@ -182,7 +194,8 @@ public struct SettingsView: View {
         Binding(
             get: { state.draft.launchAtLogin },
             set: { value in
-                state.setLaunchAtLogin(value, using: launchAtLogin)
+                state.draft.launchAtLogin = value
+                state.launchAtLoginError = nil
             }
         )
     }
@@ -208,6 +221,17 @@ public struct SettingsView: View {
 
         case .notInstalled:
             SmartctlSetupView(onRecheck: onRecheck)
+
+        case .unsupported(let version):
+            Label("smartctl \(version) is too old", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(Theme.caution)
+
+            Text("Version 7.4 or later is required. Upgrade with: brew upgrade smartmontools")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Recheck", action: onRecheck)
 
         case .failed(let message):
             Label("smartctl error", systemImage: "exclamationmark.triangle.fill")

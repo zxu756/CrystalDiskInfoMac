@@ -140,4 +140,46 @@ struct DiskutilListerTests {
         })
         expectError(.invalidPlist) { _ = try lister.physicalDisks() }
     }
+
+    @Test func skipsDisksThatDisappearDuringInfo() throws {
+        let listData = try Data(contentsOf: Self.fixtureURL("diskutil-list.plist"))
+        let lister = DiskutilLister(runner: { _, arguments in
+            if arguments == ["list", "-plist"] {
+                return listData
+            }
+            let bsdName = String(arguments[2].dropFirst("/dev/".count))
+            if bsdName == "disk0" || bsdName == "disk4" {
+                return try Self.infoPlist(for: bsdName)
+            }
+            throw DiskutilError.commandFailed("device disappeared")
+        })
+
+        let disks = try lister.physicalDisks()
+        #expect(disks.map(\.bsdName) == ["disk0", "disk4"])
+    }
+
+    @Test func timesOutHungDiskutil() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cdi-diskutil-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let script = directory.appendingPathComponent("diskutil")
+        try "#!/bin/sh\nexec sleep 5\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: script.path
+        )
+
+        let lister = DiskutilLister(diskutilURL: script, timeout: 0.2)
+
+        do {
+            _ = try lister.physicalDisks()
+            Issue.record("Expected diskutil timeout")
+        } catch let error as DiskutilError {
+            #expect(error == .commandFailed("diskutil timed out"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
 }

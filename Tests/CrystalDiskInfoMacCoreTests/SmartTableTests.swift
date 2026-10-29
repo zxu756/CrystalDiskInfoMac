@@ -126,6 +126,30 @@ struct SmartTableTests {
         #expect(aboveThreshold.isWarning == false)
     }
 
+    @Test func nvmeSeverityRowsAreMarkedWarnings() {
+        func row(id: Int, name: String, current: Int?, raw: UInt64) -> SmartTableRow {
+            SmartTableRow(
+                attribute: SmartAttribute(
+                    id: id,
+                    name: name,
+                    current: current,
+                    worst: nil,
+                    threshold: nil,
+                    rawValue: raw,
+                    rawString: "\(raw)",
+                    isPrefailure: false
+                )
+            )
+        }
+
+        #expect(row(id: 1, name: "Critical Warning", current: nil, raw: 1).isWarning)
+        #expect(row(id: 1, name: "Critical Warning", current: nil, raw: 0).isWarning == false)
+        #expect(row(id: 5, name: "Percentage Used", current: 90, raw: 90).isWarning)
+        #expect(row(id: 5, name: "Percentage Used", current: 89, raw: 89).isWarning == false)
+        #expect(row(id: 14, name: "Media Errors", current: nil, raw: 1).isWarning)
+        #expect(row(id: 14, name: "Media Errors", current: nil, raw: 0).isWarning == false)
+    }
+
     @Test func ataRowsMapAcrossAllColumns() {
         let row = SmartTableRow(
             attribute: SmartAttribute(

@@ -85,6 +85,23 @@ struct SmartctlRunnerTests {
         #expect(result.rawJSON.isEmpty == false)
     }
 
+    @Test func readAcceptsSCSIIdentity() throws {
+        let json = #"{"scsi_model_name":"SAS Disk","scsi_serial_number":"SAS-1","smart_status":{"passed":true}}"#
+        let script = try makeScript("""
+        cat <<'EOF'
+        \(json)
+        EOF
+        """)
+        defer { try? FileManager.default.removeItem(at: script.directory) }
+
+        let runner = SmartctlRunner(candidatePaths: [script.url.path], timeout: 2)
+        let result = try runner.read(bsdName: "disk9")
+
+        #expect(result.report.scsiModelName == "SAS Disk")
+        #expect(result.report.scsiSerialNumber == "SAS-1")
+        #expect(result.report.smartStatus?.passed == true)
+    }
+
     @Test func readThrowsInvalidJSON() throws {
         let script = try makeScript("echo 'not-json'\nexit 0")
         defer { try? FileManager.default.removeItem(at: script.directory) }
