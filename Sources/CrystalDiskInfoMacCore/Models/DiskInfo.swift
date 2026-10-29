@@ -58,6 +58,8 @@ public struct DiskInfo: Identifiable, Equatable, Sendable {
     public let smartStatus: SmartStatus
     public let health: HealthStatus
     public let temperatureCelsius: Int?
+    public let temperatureWarningCelsius: Int
+    public let temperatureCriticalCelsius: Int
     public let lifePercent: Int?
     public let powerOnHours: Int?
     public let powerCycleCount: Int?
@@ -79,6 +81,8 @@ public struct DiskInfo: Identifiable, Equatable, Sendable {
         smartStatus: SmartStatus,
         health: HealthStatus,
         temperatureCelsius: Int?,
+        temperatureWarningCelsius: Int,
+        temperatureCriticalCelsius: Int,
         lifePercent: Int?,
         powerOnHours: Int?,
         powerCycleCount: Int?,
@@ -99,6 +103,8 @@ public struct DiskInfo: Identifiable, Equatable, Sendable {
         self.smartStatus = smartStatus
         self.health = health
         self.temperatureCelsius = temperatureCelsius
+        self.temperatureWarningCelsius = temperatureWarningCelsius
+        self.temperatureCriticalCelsius = temperatureCriticalCelsius
         self.lifePercent = lifePercent
         self.powerOnHours = powerOnHours
         self.powerCycleCount = powerCycleCount
