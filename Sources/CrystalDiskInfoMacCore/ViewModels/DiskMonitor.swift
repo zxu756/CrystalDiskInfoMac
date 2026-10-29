@@ -9,6 +9,7 @@ public final class DiskMonitor: ObservableObject {
     @Published public private(set) var lastRefresh: Date?
     @Published public private(set) var errorMessage: String?
     @Published public private(set) var settings: AppSettings
+    @Published public private(set) var historySamples: [HistorySample] = []
 
     public var selectedDisk: DiskInfo? {
         guard let selectedDiskID else { return nil }
@@ -45,6 +46,7 @@ public final class DiskMonitor: ObservableObject {
         previewDisks: [DiskInfo],
         selectedDiskID: String? = nil,
         lastRefresh: Date? = nil,
+        historySamples: [HistorySample] = [],
         settings: AppSettings = .standard
     ) {
         self.scanner = PreviewScanner(disks: previewDisks)
@@ -57,6 +59,7 @@ public final class DiskMonitor: ObservableObject {
         self.disks = previewDisks
         self.selectedDiskID = selectedDiskID ?? previewDisks.first?.id
         self.lastRefresh = lastRefresh
+        self.historySamples = historySamples
     }
 
     public func selectDisk(id: String) {
@@ -64,6 +67,7 @@ public final class DiskMonitor: ObservableObject {
             return
         }
         selectedDiskID = id
+        loadHistory(for: id)
     }
 
     public func refresh() async {
@@ -151,6 +155,8 @@ public final class DiskMonitor: ObservableObject {
             }
         }
 
+        loadHistory(for: selectedDiskID)
+
         let pendingNotifications = notificationPolicy.evaluate(
             disks: scanned,
             notificationsEnabled: settings.notificationsEnabled
@@ -170,6 +176,19 @@ public final class DiskMonitor: ObservableObject {
         }
         return "Unable to refresh disks: \(error.localizedDescription)"
     }
+
+    private func loadHistory(for diskID: String?) {
+        guard let diskID else {
+            historySamples = []
+            return
+        }
+
+        do {
+            historySamples = try history.samples(for: diskID)
+        } catch {
+            historySamples = []
+        }
+    }
 }
 
 private final class PreviewScanner: DiskScanning {
@@ -186,7 +205,9 @@ private final class PreviewScanner: DiskScanning {
 
 private final class PreviewHistoryStore: HistoryStoring {
     func append(_ sample: HistorySample, for diskID: String) throws {}
-    func samples(for diskID: String) throws -> [HistorySample] { [] }
+    func samples(for diskID: String) throws -> [HistorySample] {
+        PreviewData.historySamples(for: diskID)
+    }
     func prune(now: Date) throws {}
 }
 
@@ -207,7 +228,8 @@ extension DiskMonitor {
         return DiskMonitor(
             previewDisks: disks,
             selectedDiskID: disks.first?.id,
-            lastRefresh: PreviewData.timestamp
+            lastRefresh: PreviewData.timestamp,
+            historySamples: PreviewData.appleHistory
         )
     }
 }
@@ -215,6 +237,30 @@ extension DiskMonitor {
 private enum PreviewData {
     static let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
     static let disks: [DiskInfo] = [appleSSD, intelSSD]
+
+    static let appleHistory = historySamples(for: "REDACTED|APPLE SSD AP0256Z")
+
+    static func historySamples(for diskID: String) -> [HistorySample] {
+        let isIntel = diskID.localizedCaseInsensitiveContains("INTEL")
+        let baseTemperature = isIntel ? 41 : 36
+        let life = isIntel ? 97 : 95
+        let hours = isIntel ? 12236 : 1695
+
+        return (0..<288).map { index in
+            let sampleTime = timestamp.addingTimeInterval(
+                -Double(287 - index) * 300
+            )
+            let temperature = baseTemperature
+                + Int((sin(Double(index) / 18.0) * 2).rounded())
+            return HistorySample(
+                timestamp: sampleTime,
+                health: .good,
+                temperatureCelsius: temperature,
+                lifePercent: life,
+                powerOnHours: hours
+            )
+        }
+    }
 
     private static let appleSSD = DiskInfo(
         id: "REDACTED|APPLE SSD AP0256Z",

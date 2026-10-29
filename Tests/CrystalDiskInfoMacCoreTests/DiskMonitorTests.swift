@@ -66,6 +66,8 @@ struct DiskMonitorTests {
         #expect(samples.first?.temperatureCelsius == 55)
         #expect(samples.first?.lifePercent == 90)
         #expect(samples.first?.powerOnHours == 123)
+        #expect(monitor.historySamples.count == 1)
+        #expect(monitor.historySamples.first?.timestamp == fixedNow)
         #expect(monitor.lastRefresh == fixedNow)
     }
 

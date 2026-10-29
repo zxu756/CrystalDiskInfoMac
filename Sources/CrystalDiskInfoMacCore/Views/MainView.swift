@@ -39,6 +39,15 @@ public struct MainView: View {
                         case .smart:
                             SmartTableView(attributes: disk.attributes)
                                 .frame(maxHeight: .infinity)
+                        case .history:
+                            HistoryChartView(
+                                samples: model.historySamples,
+                                now: model.lastRefresh ?? Date(),
+                                warningCelsius: disk.temperatureWarningCelsius,
+                                criticalCelsius: disk.temperatureCriticalCelsius,
+                                gapThreshold: TimeInterval(model.settings.refreshMinutes * 60) * 2.5
+                            )
+                            .frame(maxHeight: .infinity)
                         }
                     } else {
                         Spacer(minLength: 0)
@@ -75,7 +84,7 @@ public struct MainView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 190)
+            .frame(width: 270)
 
             Spacer(minLength: 12)
 
@@ -200,6 +209,7 @@ private enum BannerStyle {
 private enum MainSection: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case smart = "SMART"
+    case history = "History"
 
     var id: String { rawValue }
 }
