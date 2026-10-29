@@ -67,6 +67,7 @@ private struct SettingsContainer: View {
             },
             onSave: { settings in
                 monitor.apply(settings: settings)
+                Task { await monitor.refresh() }
                 NSApplication.shared.keyWindow?.close()
             },
             onCancel: {
