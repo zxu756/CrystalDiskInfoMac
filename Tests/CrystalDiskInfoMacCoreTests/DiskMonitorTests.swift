@@ -111,6 +111,25 @@ struct DiskMonitorTests {
         #expect(monitor.errorMessage == nil)
     }
 
+    @Test func notInstalledStatusSkipsScanAndKeepsDisks() async {
+        let disk = TestFixtures.disk(id: "disk0-id", bsdName: "disk0")
+        let scanner = MockScanner(disks: [disk])
+        let monitor = makeMonitor(scanner: scanner)
+
+        await monitor.refresh()
+        #expect(scanner.numberOfScans == 1)
+        let firstRefresh = monitor.lastRefresh
+
+        scanner.setStatus(.notInstalled)
+        await monitor.refresh()
+
+        #expect(scanner.numberOfScans == 1)
+        #expect(monitor.disks.count == 1)
+        #expect(monitor.smartctlStatus == .notInstalled)
+        #expect(monitor.errorMessage?.contains("smartmontools") == true)
+        #expect(monitor.lastRefresh == firstRefresh)
+    }
+
     @Test func selectedDiskStaysStableWhenStillPresent() async {
         let disk0 = TestFixtures.disk(id: "disk0-id", bsdName: "disk0")
         let disk4 = TestFixtures.disk(id: "disk4-id", bsdName: "disk4", isInternal: false)

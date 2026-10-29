@@ -25,7 +25,7 @@ struct CrystalDiskInfoMacApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsPlaceholderView()
+            SettingsContainer(monitor: monitor)
         }
     }
 }
@@ -55,16 +55,23 @@ private struct MenuBarContent: View {
     }
 }
 
-private struct SettingsPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 10) {
-            Text("Settings")
-                .font(.system(size: 16, weight: .semibold))
+private struct SettingsContainer: View {
+    @ObservedObject var monitor: DiskMonitor
 
-            Text("Settings will be available in the next task.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-        }
-        .frame(width: 420, height: 260)
+    var body: some View {
+        SettingsView(
+            settings: monitor.settings,
+            smartctlStatus: monitor.smartctlStatus,
+            onRecheck: {
+                Task { await monitor.refresh() }
+            },
+            onSave: { settings in
+                monitor.apply(settings: settings)
+                NSApplication.shared.keyWindow?.close()
+            },
+            onCancel: {
+                NSApplication.shared.keyWindow?.close()
+            }
+        )
     }
 }

@@ -1,9 +1,9 @@
 import Foundation
 
 public struct TemperaturePolicy: Codable, Equatable, Sendable {
-    public let useDriveLimits: Bool
-    public let warningCelsius: Int
-    public let criticalCelsius: Int
+    public var useDriveLimits: Bool
+    public var warningCelsius: Int
+    public var criticalCelsius: Int
 
     public static let standard = TemperaturePolicy()
 

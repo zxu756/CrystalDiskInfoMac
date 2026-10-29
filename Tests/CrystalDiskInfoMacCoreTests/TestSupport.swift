@@ -117,6 +117,7 @@ final class MockScanner: DiskScanning, @unchecked Sendable {
     private var result: Result<[DiskInfo], Error>
     private var scanCount = 0
     private var lastPolicy: TemperaturePolicy?
+    private var status: SmartctlAvailability = .unknown
     var onScan: (() -> Void)?
 
     init(disks: [DiskInfo]) {
@@ -131,6 +132,18 @@ final class MockScanner: DiskScanning, @unchecked Sendable {
         lock.lock()
         result = newResult
         lock.unlock()
+    }
+
+    func setStatus(_ newStatus: SmartctlAvailability) {
+        lock.lock()
+        status = newStatus
+        lock.unlock()
+    }
+
+    func smartctlStatus() -> SmartctlAvailability {
+        lock.lock()
+        defer { lock.unlock() }
+        return status
     }
 
     func scan(policy: TemperaturePolicy) throws -> [DiskInfo] {
