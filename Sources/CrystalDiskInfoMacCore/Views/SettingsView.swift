@@ -13,6 +13,11 @@ final class SettingsViewState: ObservableObject {
     }
 
     func applyLaunchAtLogin(using manager: LaunchAtLoginManaging) -> Bool {
+        guard draft.launchAtLogin != manager.isEnabled else {
+            launchAtLoginError = nil
+            return true
+        }
+
         do {
             try manager.setEnabled(draft.launchAtLogin)
             launchAtLoginError = nil

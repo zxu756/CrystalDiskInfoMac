@@ -62,7 +62,7 @@ public struct MainView: View {
                                 now: model.lastRefresh ?? Date(),
                                 warningCelsius: disk.temperatureWarningCelsius,
                                 criticalCelsius: disk.temperatureCriticalCelsius,
-                                gapThreshold: TimeInterval(model.settings.refreshMinutes * 60) * 2.5
+                                gapThreshold: TimeInterval(model.settings.refreshMinutes * 60) * 1.5
                             )
                             .frame(maxHeight: .infinity)
                         }

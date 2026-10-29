@@ -147,6 +147,53 @@ struct DiskMonitorTests {
         #expect(monitor.errorMessage?.contains("too old") == true)
     }
 
+    @Test func anonymousFailureThenRecoveryAdoptsStableIdentity() async {
+        let failed = TestFixtures.disk(
+            id: "disk4",
+            bsdName: "disk4",
+            smartStatus: .unknown,
+            health: .unknown,
+            readError: "Permission denied",
+            consecutiveFailures: 1
+        )
+        let good = TestFixtures.disk(id: "SERIAL|INTEL", bsdName: "disk4")
+        let scanner = MockScanner(disks: [failed])
+        let monitor = makeMonitor(scanner: scanner)
+
+        await monitor.refresh()
+        #expect(monitor.disks.first?.id == "disk4")
+        #expect(monitor.disks.first?.isStale == false)
+
+        scanner.setResult(.success([good]))
+        await monitor.refresh()
+
+        #expect(monitor.disks.first?.id == "SERIAL|INTEL")
+        #expect(monitor.selectedDiskID == "SERIAL|INTEL")
+        #expect(monitor.disks.first?.health == .good)
+    }
+
+    @Test func disappearedDiskStaysStaleForTwoRefreshes() async {
+        let disk = TestFixtures.disk(id: "stable-id", bsdName: "disk4")
+        let scanner = MockScanner(disks: [disk])
+        let monitor = makeMonitor(scanner: scanner)
+
+        await monitor.refresh()
+
+        scanner.setResult(.success([]))
+        await monitor.refresh()
+        #expect(monitor.disks.count == 1)
+        #expect(monitor.disks.first?.id == "stable-id")
+        #expect(monitor.disks.first?.isStale == true)
+        #expect(monitor.disks.first?.readError?.contains("not found") == true)
+
+        await monitor.refresh()
+        #expect(monitor.disks.count == 1)
+        #expect(monitor.disks.first?.isStale == true)
+
+        await monitor.refresh()
+        #expect(monitor.disks.isEmpty)
+    }
+
     @Test func transientFailureKeepsStableIdentityAndLastKnownData() async {
         let good = TestFixtures.disk(
             id: "stable-id",
@@ -161,7 +208,8 @@ struct DiskMonitorTests {
             health: .unknown,
             temperatureCelsius: nil,
             lifePercent: nil,
-            readError: "smartctl timed out"
+            readError: "smartctl timed out",
+            consecutiveFailures: 1
         )
         let scanner = MockScanner(disks: [good])
         let history = RecordingHistoryStore()
@@ -185,7 +233,7 @@ struct DiskMonitorTests {
 
         #expect(monitor.disks.first?.id == "stable-id")
         #expect(monitor.disks.first?.health == .unknown)
-        #expect(monitor.disks.first?.isStale == true)
+        #expect(monitor.disks.first?.isStale == false)
         #expect(monitor.disks.first?.consecutiveFailures == 2)
         #expect((try? history.samples(for: "stable-id"))?.count == 1)
 

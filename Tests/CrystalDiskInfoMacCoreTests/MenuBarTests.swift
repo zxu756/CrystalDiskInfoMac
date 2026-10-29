@@ -9,13 +9,15 @@ struct MenuBarTests {
         var delegate: UNUserNotificationCenterDelegate?
         var authorizationRequests = 0
         var requests: [UNNotificationRequest] = []
+        var grantResults: [Bool] = [true]
 
         func requestAuthorization(
             options: UNAuthorizationOptions,
             completionHandler: @escaping @Sendable (Bool, Error?) -> Void
         ) {
             authorizationRequests += 1
-            completionHandler(true, nil)
+            let granted = grantResults.isEmpty ? true : grantResults.removeFirst()
+            completionHandler(granted, nil)
         }
 
         func add(
@@ -86,6 +88,27 @@ struct MenuBarTests {
         )
 
         #expect(renderer.nsImage != nil)
+    }
+
+    @Test func deniedAuthorizationIsRetriedOnNextPost() {
+        let center = FakeNotificationCenter()
+        center.grantResults = [false, true]
+        let service = NotificationService(center: center)
+        let notification = DiskNotification(
+            kind: .health,
+            diskID: "disk-id",
+            diskName: "Test Disk",
+            title: "Test Disk health changed",
+            body: "Health changed from Good to Bad."
+        )
+
+        service.post(notification)
+        #expect(center.authorizationRequests == 1)
+        #expect(center.requests.isEmpty)
+
+        service.post(notification)
+        #expect(center.authorizationRequests == 2)
+        #expect(center.requests.count == 1)
     }
 
     @Test func notificationServiceRequestsAuthorizationOnceAndDeliversContent() {

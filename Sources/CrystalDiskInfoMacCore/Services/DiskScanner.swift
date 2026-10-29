@@ -49,7 +49,8 @@ public final class DiskScanner: DiskScanning {
                 return DiskMapper.map(
                     candidate: candidate,
                     report: result.report,
-                    policy: policy
+                    policy: policy,
+                    stderr: result.stderr
                 )
             } catch let error as SmartctlError {
                 switch error {

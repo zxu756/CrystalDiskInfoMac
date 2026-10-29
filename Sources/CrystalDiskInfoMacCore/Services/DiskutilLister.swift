@@ -83,15 +83,10 @@ public final class DiskutilLister: DiskListing {
         candidates.reserveCapacity(names.count)
 
         for name in names {
-            do {
-                let infoData = try runner(diskutilURL, ["info", "-plist", "/dev/\(name)"])
-                let info = try Self.plistDictionary(from: infoData)
-                if let candidate = Self.makeCandidate(bsdName: name, info: info) {
-                    candidates.append(candidate)
-                }
-            } catch DiskutilError.commandFailed {
-                // The disk may have been unplugged between list and info.
-                continue
+            let infoData = try runner(diskutilURL, ["info", "-plist", "/dev/\(name)"])
+            let info = try Self.plistDictionary(from: infoData)
+            if let candidate = Self.makeCandidate(bsdName: name, info: info) {
+                candidates.append(candidate)
             }
         }
 

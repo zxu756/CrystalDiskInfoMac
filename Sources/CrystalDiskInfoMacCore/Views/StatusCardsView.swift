@@ -12,6 +12,7 @@ struct StatusCardsView: View {
                 systemImage: disk.health.symbolName,
                 tint: Theme.healthColor(disk.health)
             )
+            .help(disk.healthReasons.joined(separator: "\n"))
 
             StatusCard(
                 title: "Temperature",
@@ -39,8 +40,8 @@ struct StatusCardsView: View {
         if disk.isStale {
             return "Last refresh failed — showing last known data"
         }
-        if let reason = disk.healthReasons.first {
-            return reason
+        if !disk.healthReasons.isEmpty {
+            return disk.healthReasons.prefix(2).joined(separator: " ")
         }
         switch disk.health {
         case .good:

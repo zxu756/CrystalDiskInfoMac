@@ -29,6 +29,7 @@ public final class JSONHistoryStore: HistoryStoring {
     private let retentionDays: Int
     private let maxSamplesPerDisk: Int
     private let now: () -> Date
+    private let lock = NSLock()
 
     private let encoder: JSONEncoder
     private let decoder = JSONDecoder()
@@ -55,6 +56,9 @@ public final class JSONHistoryStore: HistoryStoring {
     }
 
     public func append(_ sample: HistorySample, for diskID: String) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
         let url = fileURL(for: diskID)
         let current = now()
         var samples = loadRawSamples(at: url)
@@ -64,6 +68,9 @@ public final class JSONHistoryStore: HistoryStoring {
     }
 
     public func samples(for diskID: String) throws -> [HistorySample] {
+        lock.lock()
+        defer { lock.unlock() }
+
         let url = fileURL(for: diskID)
         let raw = loadRawSamples(at: url)
         let samples = pruned(raw, now: now())
@@ -74,6 +81,9 @@ public final class JSONHistoryStore: HistoryStoring {
     }
 
     public func prune(now: Date) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
         let urls = try FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,

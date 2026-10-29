@@ -161,6 +161,22 @@ struct HistoryStoreTests {
         #expect(try store.samples(for: "SERIAL|Model").count == 1)
     }
 
+    @Test func concurrentAppendsAreSerialized() throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let now = self.now
+        let store = JSONHistoryStore(directory: directory, maxSamplesPerDisk: 1_000, now: { now })
+
+        DispatchQueue.concurrentPerform(iterations: 50) { index in
+            try? store.append(
+                sample(at: now.addingTimeInterval(Double(index))),
+                for: "diskA"
+            )
+        }
+
+        #expect(try store.samples(for: "diskA").count == 50)
+    }
+
     @Test func createsDirectoryAndWritesValidJSON() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("cdi-history-\(UUID().uuidString)", isDirectory: true)

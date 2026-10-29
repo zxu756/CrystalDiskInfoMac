@@ -96,6 +96,19 @@ struct HistoryChartTests {
         #expect(series.lifeSegments[0].count == 3)
     }
 
+    @Test func oneMissedRefreshCreatesGap() {
+        let samples = [
+            sample(at: now.addingTimeInterval(-1_800), temperature: 36, life: 95),
+            sample(at: now.addingTimeInterval(-1_200), temperature: 37, life: 95),
+            sample(at: now.addingTimeInterval(0), temperature: 38, life: 95)
+        ]
+
+        let series = HistorySeries(samples: samples, gapThreshold: 600 * 1.5)
+
+        #expect(series.temperatureSegments.count == 2)
+        #expect(series.lifeSegments.count == 2)
+    }
+
     @Test func emptyHistoryProducesNoSeries() {
         #expect(HistoryWindow.oneDay.filtered([], now: now).isEmpty)
 
@@ -140,6 +153,26 @@ struct HistoryChartTests {
         #expect(downsampled.count <= 600)
         #expect(downsampled.first?.timestamp == samples.first?.timestamp)
         #expect(downsampled.last?.timestamp == samples.last?.timestamp)
+    }
+
+    @Test func downsamplingPreservesExtrema() {
+        var samples = (0..<43_200).map { index in
+            sample(
+                at: now.addingTimeInterval(-Double(43_199 - index) * 60),
+                temperature: 36,
+                life: 95
+            )
+        }
+        samples[1] = sample(at: samples[1].timestamp, temperature: 85, life: 95)
+
+        let downsampled = HistorySeries.downsampled(
+            samples,
+            maxPoints: 600,
+            value: { $0.temperatureCelsius }
+        )
+
+        #expect(downsampled.contains { $0.temperatureCelsius == 85 })
+        #expect(downsampled.count <= 600)
     }
 
     @Test func automaticGapThresholdAdaptsToCadence() {

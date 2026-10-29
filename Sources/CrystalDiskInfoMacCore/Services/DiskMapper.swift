@@ -4,7 +4,8 @@ public enum DiskMapper {
     public static func map(
         candidate: DiskCandidate,
         report: SmartctlReport,
-        policy: TemperaturePolicy = .standard
+        policy: TemperaturePolicy = .standard,
+        stderr: String = ""
     ) -> DiskInfo {
         let evaluation = HealthEvaluator.evaluate(report: report, policy: policy)
         let model = nonEmpty(report.modelName)
@@ -56,7 +57,7 @@ public enum DiskMapper {
                 ? (reasonText.isEmpty ? "SMART data is unavailable." : reasonText)
                 : nil,
             healthReasons: evaluation.reasons,
-            diagnostics: diagnostics(report)
+            diagnostics: diagnostics(report, stderr: stderr)
         )
     }
 
@@ -90,7 +91,7 @@ public enum DiskMapper {
             mediaErrors: nil,
             attributes: [],
             readError: error,
-            isStale: true,
+            isStale: false,
             consecutiveFailures: 1,
             healthReasons: [error]
         )
@@ -224,7 +225,7 @@ public enum DiskMapper {
         }
     }
 
-    private static func diagnostics(_ report: SmartctlReport) -> [String] {
+    private static func diagnostics(_ report: SmartctlReport, stderr: String) -> [String] {
         var result: [String] = []
 
         for message in report.smartctl?.messages ?? [] {
@@ -235,6 +236,11 @@ public enum DiskMapper {
 
         if let exitStatus = report.smartctl?.exitStatus, exitStatus != 0 {
             result.append("smartctl exit status: \(exitStatus)")
+        }
+
+        let stderrText = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !stderrText.isEmpty {
+            result.append("stderr: \(stderrText)")
         }
 
         return result

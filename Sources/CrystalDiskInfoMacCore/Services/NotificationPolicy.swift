@@ -64,6 +64,10 @@ public final class NotificationPolicy {
         states.removeAll()
     }
 
+    public func forget(diskID: String) {
+        states.removeValue(forKey: diskID)
+    }
+
     public func evaluate(
         disks: [DiskInfo],
         notificationsEnabled: Bool = true
