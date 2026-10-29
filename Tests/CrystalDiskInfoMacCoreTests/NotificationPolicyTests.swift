@@ -27,6 +27,7 @@ struct NotificationPolicyTests {
         let notifications = policy.evaluate(disks: [disk(health: .bad)])
         #expect(notifications.count == 1)
         #expect(notifications.first?.kind == .health)
+        #expect(notifications.first?.title.contains("Test Disk") == true)
         #expect(notifications.first?.body.contains("Good") == true)
         #expect(notifications.first?.body.contains("Bad") == true)
 
@@ -90,6 +91,7 @@ struct NotificationPolicyTests {
         let warning = policy.evaluate(disks: [disk(temperature: 50, warning: 50, critical: 60)])
         #expect(warning.count == 1)
         #expect(warning.first?.kind == .temperature)
+        #expect(warning.first?.title.contains("Test Disk") == true)
         #expect(warning.first?.body.contains("50 °C") == true)
         #expect(warning.first?.body.contains("warning") == true)
 
