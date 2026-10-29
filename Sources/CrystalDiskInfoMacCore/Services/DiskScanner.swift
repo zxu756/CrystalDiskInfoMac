@@ -1,7 +1,21 @@
 import Foundation
 
+public enum SmartctlAvailability: Equatable, Sendable {
+    case unknown
+    case available(version: String, path: String)
+    case notInstalled
+    case failed(String)
+}
+
 public protocol DiskScanning {
     func scan(policy: TemperaturePolicy) throws -> [DiskInfo]
+    func smartctlStatus() -> SmartctlAvailability
+}
+
+public extension DiskScanning {
+    func smartctlStatus() -> SmartctlAvailability {
+        .unknown
+    }
 }
 
 /// Composes disk discovery, smartctl reads, and domain mapping.
@@ -45,17 +59,45 @@ public final class DiskScanner: DiskScanning {
                 case .timeout, .invalidJSON, .deviceUnreadable:
                     return DiskMapper.unknown(
                         candidate: candidate,
-                        error: error.localizedDescription,
+                        error: Self.permissionGuidance(for: error.localizedDescription),
                         policy: policy
                     )
                 }
             } catch {
                 return DiskMapper.unknown(
                     candidate: candidate,
-                    error: error.localizedDescription,
+                    error: Self.permissionGuidance(for: error.localizedDescription),
                     policy: policy
                 )
             }
+        }
+    }
+
+    private static func permissionGuidance(for message: String) -> String {
+        let lowercased = message.lowercased()
+        guard lowercased.contains("permission")
+            || lowercased.contains("not permitted")
+            || lowercased.contains("unable to open") else {
+            return message
+        }
+        return """
+        \(message)
+        Grant Full Disk Access to CrystalDiskInfo Mac in System Settings > Privacy & Security, then click Recheck.
+        """
+    }
+
+    public func smartctlStatus() -> SmartctlAvailability {
+        do {
+            let url = try runner.discover()
+            let version = try runner.version()
+            return .available(version: version, path: url.path)
+        } catch let error as SmartctlError {
+            if case .notInstalled = error {
+                return .notInstalled
+            }
+            return .failed(error.localizedDescription)
+        } catch {
+            return .failed(error.localizedDescription)
         }
     }
 }

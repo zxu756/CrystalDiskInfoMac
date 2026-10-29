@@ -4,6 +4,7 @@ import Combine
 public struct MainView: View {
     @ObservedObject private var model: DiskMonitor
     @StateObject private var state = MainViewState()
+    @Environment(\.openSettings) private var openSettings
 
     public init(model: DiskMonitor) {
         self._model = ObservedObject(wrappedValue: model)
@@ -16,7 +17,18 @@ public struct MainView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
 
-                if let error = model.errorMessage {
+                if model.smartctlStatus == .notInstalled {
+                    SmartctlSetupView {
+                        Task { await model.refresh() }
+                    }
+                    .padding(12)
+                    .background(Theme.warningBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Theme.caution.opacity(0.35))
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else if let error = model.errorMessage {
                     errorBanner(error, style: .warning)
                 } else if let disk = model.selectedDisk, let readError = disk.readError {
                     errorBanner(readError, style: disk.health == .good ? .info : .warning)
@@ -104,6 +116,14 @@ public struct MainView: View {
             }
             .buttonStyle(.bordered)
             .disabled(model.isRefreshing)
+
+            Button {
+                openSettings()
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.borderless)
+            .help("Settings")
         }
     }
 

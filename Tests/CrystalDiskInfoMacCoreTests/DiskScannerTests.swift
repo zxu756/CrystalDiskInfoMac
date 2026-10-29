@@ -40,6 +40,20 @@ struct DiskScannerTests {
         }
     }
 
+    private final class MissingRunner: SmartctlRunning {
+        func discover() throws -> URL {
+            throw SmartctlError.notInstalled
+        }
+
+        func version() throws -> String {
+            throw SmartctlError.notInstalled
+        }
+
+        func read(bsdName: String) throws -> SmartctlResult {
+            throw SmartctlError.notInstalled
+        }
+    }
+
     private func candidate(
         _ bsdName: String,
         isInternal: Bool,
@@ -120,6 +134,7 @@ struct DiskScannerTests {
         #expect(disks[0].health == .good)
         #expect(disks[1].health == .unknown)
         #expect(disks[1].readError?.contains("Permission denied") == true)
+        #expect(disks[1].readError?.contains("Full Disk Access") == true)
     }
 
     @Test func setupFailurePropagatesInsteadOfHidingAllDisks() throws {
@@ -173,5 +188,26 @@ struct DiskScannerTests {
 
         #expect(disks[0].temperatureWarningCelsius == 45)
         #expect(disks[0].temperatureCriticalCelsius == 55)
+    }
+
+    @Test func reportsAvailableSmartctlStatus() {
+        let scanner = DiskScanner(
+            lister: FakeLister(candidates: []),
+            runner: FakeRunner(results: [:])
+        )
+
+        #expect(
+            scanner.smartctlStatus()
+                == .available(version: "7.5", path: "/fake/smartctl")
+        )
+    }
+
+    @Test func reportsMissingSmartctlStatus() {
+        let scanner = DiskScanner(
+            lister: FakeLister(candidates: []),
+            runner: MissingRunner()
+        )
+
+        #expect(scanner.smartctlStatus() == .notInstalled)
     }
 }

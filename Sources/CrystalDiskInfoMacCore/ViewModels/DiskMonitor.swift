@@ -10,6 +10,7 @@ public final class DiskMonitor: ObservableObject {
     @Published public private(set) var errorMessage: String?
     @Published public private(set) var settings: AppSettings
     @Published public private(set) var historySamples: [HistorySample] = []
+    @Published public private(set) var smartctlStatus: SmartctlAvailability = .unknown
 
     public var selectedDisk: DiskInfo? {
         guard let selectedDiskID else { return nil }
@@ -60,6 +61,10 @@ public final class DiskMonitor: ObservableObject {
         self.selectedDiskID = selectedDiskID ?? previewDisks.first?.id
         self.lastRefresh = lastRefresh
         self.historySamples = historySamples
+        self.smartctlStatus = .available(
+            version: "7.5",
+            path: "/opt/homebrew/bin/smartctl"
+        )
     }
 
     public func selectDisk(id: String) {
@@ -79,6 +84,16 @@ public final class DiskMonitor: ObservableObject {
 
         let scanner = self.scanner
         let policy = settings.temperaturePolicy
+
+        let status = await Task.detached(priority: .userInitiated) {
+            scanner.smartctlStatus()
+        }.value
+        smartctlStatus = status
+
+        if status == .notInstalled {
+            errorMessage = SmartctlError.notInstalled.errorDescription
+            return
+        }
 
         let scanned: [DiskInfo]
         do {
