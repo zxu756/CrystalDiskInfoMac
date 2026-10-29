@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TemperaturePolicy: Equatable, Sendable {
+public struct TemperaturePolicy: Codable, Equatable, Sendable {
     public let useDriveLimits: Bool
     public let warningCelsius: Int
     public let criticalCelsius: Int

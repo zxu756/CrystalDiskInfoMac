@@ -40,6 +40,8 @@ public enum DiskMapper {
             smartStatus: smartStatus(report),
             health: evaluation.status,
             temperatureCelsius: evaluation.temperatureCelsius,
+            temperatureWarningCelsius: evaluation.effectiveWarning,
+            temperatureCriticalCelsius: evaluation.effectiveCritical,
             lifePercent: evaluation.lifePercent,
             powerOnHours: powerOnHours,
             powerCycleCount: powerCycleCount,
@@ -47,6 +49,39 @@ public enum DiskMapper {
             mediaErrors: intValue(report.nvmeSmartHealthInformationLog?.mediaErrors),
             attributes: attributes(report),
             readError: readError(report: report, evaluation: evaluation)
+        )
+    }
+
+    /// Builds a visible Unknown row when one disk cannot be read. The rest of
+    /// the scan is unaffected, and the reason is surfaced instead of dropping
+    /// the disk.
+    public static func unknown(
+        candidate: DiskCandidate,
+        error: String,
+        policy: TemperaturePolicy = .standard
+    ) -> DiskInfo {
+        DiskInfo(
+            id: candidate.bsdName,
+            bsdName: candidate.bsdName,
+            model: candidate.mediaName,
+            serial: "Unknown",
+            firmware: "Unknown",
+            protocolName: candidate.deviceProtocol,
+            interfaceName: candidate.deviceProtocol,
+            capacityBytes: candidate.capacityBytes,
+            isInternal: candidate.isInternal,
+            smartStatus: .unknown,
+            health: .unknown,
+            temperatureCelsius: nil,
+            temperatureWarningCelsius: policy.warningCelsius,
+            temperatureCriticalCelsius: policy.criticalCelsius,
+            lifePercent: nil,
+            powerOnHours: nil,
+            powerCycleCount: nil,
+            unsafeShutdowns: nil,
+            mediaErrors: nil,
+            attributes: [],
+            readError: error
         )
     }
 
