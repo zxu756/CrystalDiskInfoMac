@@ -141,21 +141,22 @@ struct DiskutilListerTests {
         expectError(.invalidPlist) { _ = try lister.physicalDisks() }
     }
 
-    @Test func skipsDisksThatDisappearDuringInfo() throws {
+    @Test func infoCommandFailurePropagates() throws {
         let listData = try Data(contentsOf: Self.fixtureURL("diskutil-list.plist"))
         let lister = DiskutilLister(runner: { _, arguments in
             if arguments == ["list", "-plist"] {
                 return listData
             }
             let bsdName = String(arguments[2].dropFirst("/dev/".count))
-            if bsdName == "disk0" || bsdName == "disk4" {
+            if bsdName == "disk0" {
                 return try Self.infoPlist(for: bsdName)
             }
             throw DiskutilError.commandFailed("device disappeared")
         })
 
-        let disks = try lister.physicalDisks()
-        #expect(disks.map(\.bsdName) == ["disk0", "disk4"])
+        expectError(.commandFailed("device disappeared")) {
+            _ = try lister.physicalDisks()
+        }
     }
 
     @Test func timesOutHungDiskutil() throws {

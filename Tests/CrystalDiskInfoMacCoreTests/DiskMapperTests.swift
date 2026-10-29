@@ -252,6 +252,21 @@ struct DiskMapperTests {
         #expect(info.lifePercent == 77)
     }
 
+    @Test func stderrAppearsInDiagnostics() throws {
+        let report = try report([
+            "model_name": "Diagnostic Disk",
+            "smart_status": ["passed": true]
+        ])
+
+        let info = DiskMapper.map(
+            candidate: disk4Candidate(),
+            report: report,
+            stderr: "warning: bridge"
+        )
+
+        #expect(info.diagnostics.contains { $0.contains("stderr: warning: bridge") })
+    }
+
     @Test func mapsSCSIIdentity() throws {
         let report = try report([
             "scsi_model_name": "SAS Disk",

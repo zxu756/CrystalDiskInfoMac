@@ -49,8 +49,10 @@ public final class NotificationService: NSObject, NotificationDelivering, UNUser
             deliver(notification)
             return
         case .denied:
+            state = .requesting
+            pending.append(notification)
+            shouldRequest = true
             lock.unlock()
-            return
         case .requesting:
             pending.append(notification)
             lock.unlock()

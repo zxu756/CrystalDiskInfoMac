@@ -94,28 +94,78 @@ public struct HistorySeries: Equatable, Sendable {
     }
 
     /// Downsamples a single contiguous segment for rendering while preserving
-    /// its first and last points. The model still retains every sample.
+    /// its first and last points and the minimum/maximum value in each bucket.
+    /// The model still retains every sample.
     public static func downsampled(
         _ samples: [HistorySample],
         maxPoints: Int
     ) -> [HistorySample] {
-        guard maxPoints > 1, samples.count > maxPoints else {
+        downsampled(samples, maxPoints: maxPoints) { $0.temperatureCelsius }
+    }
+
+    public static func downsampled(
+        _ samples: [HistorySample],
+        maxPoints: Int,
+        value: (HistorySample) -> Int?
+    ) -> [HistorySample] {
+        guard maxPoints > 2, samples.count > maxPoints else {
             return samples
         }
 
-        let step = max(1, Int(ceil(Double(samples.count) / Double(maxPoints))))
+        let bucketCount = max(1, (maxPoints - 2) / 2)
+        let bucketSize = max(
+            1,
+            Int(ceil(Double(samples.count) / Double(bucketCount)))
+        )
+
         var result: [HistorySample] = []
         var index = 0
+
         while index < samples.count {
-            result.append(samples[index])
-            index += step
+            let end = min(index + bucketSize, samples.count)
+            let bucket = samples[index..<end]
+
+            var minSample: HistorySample?
+            var maxSample: HistorySample?
+            var minValue = Int.max
+            var maxValue = Int.min
+
+            for sample in bucket {
+                guard let sampleValue = value(sample) else { continue }
+                if sampleValue < minValue {
+                    minValue = sampleValue
+                    minSample = sample
+                }
+                if sampleValue > maxValue {
+                    maxValue = sampleValue
+                    maxSample = sample
+                }
+            }
+
+            if let minSample, let maxSample {
+                let ordered: [HistorySample]
+                if minSample.timestamp <= maxSample.timestamp {
+                    ordered = [minSample, maxSample]
+                } else {
+                    ordered = [maxSample, minSample]
+                }
+                for sample in ordered where result.last?.timestamp != sample.timestamp {
+                    result.append(sample)
+                }
+            }
+
+            index = end
         }
 
+        if let first = samples.first, result.first?.timestamp != first.timestamp {
+            result.insert(first, at: 0)
+        }
         if let last = samples.last, result.last?.timestamp != last.timestamp {
-            if result.count >= maxPoints {
-                result.removeLast()
-            }
             result.append(last)
+        }
+
+        while result.count > maxPoints, result.count > 2 {
+            result.remove(at: 1)
         }
 
         return result
@@ -245,7 +295,11 @@ public struct HistoryChartView: View {
                     Array(series.temperatureSegments.enumerated()),
                     id: \.offset
                 ) { index, segment in
-                    let points = HistorySeries.downsampled(segment, maxPoints: 600)
+                    let points = HistorySeries.downsampled(
+                        segment,
+                        maxPoints: 600,
+                        value: { $0.temperatureCelsius }
+                    )
                     if points.count == 1, let sample = points.first {
                         PointMark(
                             x: .value("Time", sample.timestamp),
@@ -312,7 +366,11 @@ public struct HistoryChartView: View {
                     Array(series.lifeSegments.enumerated()),
                     id: \.offset
                 ) { index, segment in
-                    let points = HistorySeries.downsampled(segment, maxPoints: 600)
+                    let points = HistorySeries.downsampled(
+                        segment,
+                        maxPoints: 600,
+                        value: { $0.lifePercent }
+                    )
                     if points.count == 1, let sample = points.first {
                         PointMark(
                             x: .value("Time", sample.timestamp),

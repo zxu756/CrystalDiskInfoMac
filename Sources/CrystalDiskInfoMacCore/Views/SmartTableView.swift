@@ -20,6 +20,8 @@ public struct SmartTableRow: Identifiable, Equatable, Sendable {
             return (attribute.current ?? 0) >= 90
         case "Media Errors":
             return (attribute.rawValue ?? 0) > 0
+        case "Reallocated_Sector_Ct", "Current_Pending_Sector", "Offline_Uncorrectable":
+            return (attribute.rawValue ?? 0) > 0
         default:
             return false
         }

@@ -25,7 +25,9 @@ public final class DiskMonitor: ObservableObject {
     private let now: () -> Date
     private var refreshTask: Task<Void, Never>?
     private var failureCounts: [String: Int] = [:]
+    private var missingCounts: [String: Int] = [:]
     private var hasPrunedHistory = false
+    private var historyLoadGeneration = 0
 
     public init(
         scanner: DiskScanning,
@@ -173,7 +175,7 @@ public final class DiskMonitor: ObservableObject {
         let shouldPruneHistory = !hasPrunedHistory
         hasPrunedHistory = true
         let writes: [(HistorySample, String)] = reconciled
-            .filter { !$0.isStale }
+            .filter { !$0.isStale && $0.consecutiveFailures == 0 }
             .map { disk in
                 (
                     HistorySample(
@@ -228,6 +230,9 @@ public final class DiskMonitor: ObservableObject {
     }
 
     private func loadHistory(for diskID: String?) async {
+        historyLoadGeneration += 1
+        let generation = historyLoadGeneration
+
         guard let diskID else {
             historySamples = []
             return
@@ -238,32 +243,69 @@ public final class DiskMonitor: ObservableObject {
             (try? history.samples(for: diskID)) ?? []
         }.value
 
-        if selectedDiskID == diskID {
+        if selectedDiskID == diskID, generation == historyLoadGeneration {
             historySamples = samples
         }
     }
 
     private func reconcile(_ scanned: [DiskInfo]) -> [DiskInfo] {
-        scanned.map { disk in
+        let presentNames = Set(scanned.map(\.bsdName))
+        var reconciled: [DiskInfo] = []
+
+        for disk in scanned {
+            missingCounts[disk.id] = 0
+
             guard disk.health == .unknown else {
+                if let previous = disks.first(where: { $0.bsdName == disk.bsdName }),
+                   previous.id != disk.id {
+                    notificationPolicy.forget(diskID: previous.id)
+                    failureCounts.removeValue(forKey: previous.id)
+                    missingCounts.removeValue(forKey: previous.id)
+                    if selectedDiskID == previous.id {
+                        selectedDiskID = disk.id
+                    }
+                }
                 failureCounts[disk.id] = 0
-                return disk
+                missingCounts[disk.id] = 0
+                reconciled.append(disk)
+                continue
             }
 
             guard let previous = disks.first(where: { $0.bsdName == disk.bsdName }) else {
                 failureCounts[disk.id] = max(failureCounts[disk.id] ?? 0, 1)
-                return disk
+                reconciled.append(disk)
+                continue
             }
 
-            let failures = (failureCounts[previous.id] ?? 0) + 1
-            failureCounts[previous.id] = failures
+            failureCounts[previous.id] = (failureCounts[previous.id] ?? 0) + 1
+            missingCounts[previous.id] = 0
+            let failures = failureCounts[previous.id] ?? 1
 
             if failures < 2 {
-                return staleCopy(of: previous, error: disk.readError, failures: failures)
+                reconciled.append(staleCopy(of: previous, error: disk.readError, failures: failures))
+            } else {
+                reconciled.append(unknownCopy(of: previous, error: disk.readError, failures: failures))
             }
-
-            return unknownCopy(of: previous, error: disk.readError, failures: failures)
         }
+
+        for previous in disks where !presentNames.contains(previous.bsdName) {
+            let misses = (missingCounts[previous.id] ?? 0) + 1
+            missingCounts[previous.id] = misses
+
+            if misses <= 2 {
+                reconciled.append(
+                    staleCopy(
+                        of: previous,
+                        error: "Disk not found; showing last known data.",
+                        failures: misses
+                    )
+                )
+            } else {
+                missingCounts.removeValue(forKey: previous.id)
+            }
+        }
+
+        return reconciled
     }
 
     private func staleCopy(of previous: DiskInfo, error: String?, failures: Int) -> DiskInfo {
@@ -320,7 +362,7 @@ public final class DiskMonitor: ObservableObject {
             mediaErrors: nil,
             attributes: [],
             readError: reason,
-            isStale: true,
+            isStale: false,
             consecutiveFailures: failures,
             healthReasons: [reason],
             diagnostics: []

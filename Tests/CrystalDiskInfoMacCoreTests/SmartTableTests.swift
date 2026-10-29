@@ -150,6 +150,28 @@ struct SmartTableTests {
         #expect(row(id: 14, name: "Media Errors", current: nil, raw: 0).isWarning == false)
     }
 
+    @Test func ataMediaRowsAreMarkedWarnings() {
+        for name in [
+            "Reallocated_Sector_Ct",
+            "Current_Pending_Sector",
+            "Offline_Uncorrectable"
+        ] {
+            let row = SmartTableRow(
+                attribute: SmartAttribute(
+                    id: 5,
+                    name: name,
+                    current: 100,
+                    worst: 100,
+                    threshold: 10,
+                    rawValue: 1,
+                    rawString: "1",
+                    isPrefailure: true
+                )
+            )
+            #expect(row.isWarning, "expected warning for \(name)")
+        }
+    }
+
     @Test func ataRowsMapAcrossAllColumns() {
         let row = SmartTableRow(
             attribute: SmartAttribute(
@@ -169,7 +191,7 @@ struct SmartTableTests {
         #expect(row.worstDisplay == "100")
         #expect(row.thresholdDisplay == "10")
         #expect(row.rawDisplay == "3")
-        #expect(row.isWarning == false)
+        #expect(row.isWarning == true)
         #expect(row.currentSortValue == 100)
         #expect(row.thresholdSortValue == 10)
     }

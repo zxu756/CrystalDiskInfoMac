@@ -25,12 +25,19 @@ public final class LaunchAtLoginManager: LaunchAtLoginManaging {
     }
 
     public func setEnabled(_ enabled: Bool) throws {
+        let status = SMAppService.mainApp.status
+
         if enabled {
+            guard status != .enabled else { return }
+            if status == .requiresApproval {
+                throw LaunchAtLoginError.requiresApproval
+            }
             try SMAppService.mainApp.register()
             if SMAppService.mainApp.status == .requiresApproval {
                 throw LaunchAtLoginError.requiresApproval
             }
         } else {
+            guard status != .notRegistered else { return }
             try SMAppService.mainApp.unregister()
         }
     }

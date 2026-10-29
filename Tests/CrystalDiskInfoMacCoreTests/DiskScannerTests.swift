@@ -147,7 +147,7 @@ struct DiskScannerTests {
         #expect(disks.count == 2)
         #expect(disks[0].health == .good)
         #expect(disks[1].health == .unknown)
-        #expect(disks[1].isStale == true)
+        #expect(disks[1].isStale == false)
         #expect(disks[1].consecutiveFailures == 1)
         #expect(disks[1].readError?.contains("Permission denied") == true)
         #expect(disks[1].readError?.contains("Full Disk Access") == true)

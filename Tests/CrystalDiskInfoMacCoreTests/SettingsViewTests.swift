@@ -7,6 +7,7 @@ struct SettingsViewTests {
     private final class FakeLaunchAtLogin: LaunchAtLoginManaging {
         var isEnabled: Bool
         var failure: Error?
+        var setEnabledCalls = 0
 
         init(isEnabled: Bool, failure: Error? = nil) {
             self.isEnabled = isEnabled
@@ -14,6 +15,7 @@ struct SettingsViewTests {
         }
 
         func setEnabled(_ enabled: Bool) throws {
+            setEnabledCalls += 1
             if let failure {
                 throw failure
             }
@@ -134,6 +136,18 @@ struct SettingsViewTests {
 
         #expect(manager.isEnabled == false)
         #expect(state.draft.launchAtLogin == true)
+    }
+
+    @MainActor
+    @Test func unchangedLaunchAtLoginDoesNotCallManager() {
+        let manager = FakeLaunchAtLogin(isEnabled: false)
+        let state = SettingsViewState(settings: .standard, launchAtLogin: manager)
+
+        let applied = state.applyLaunchAtLogin(using: manager)
+
+        #expect(applied)
+        #expect(manager.setEnabledCalls == 0)
+        #expect(state.launchAtLoginError == nil)
     }
 
     @MainActor
