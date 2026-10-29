@@ -41,6 +41,24 @@ public final class DiskMonitor: ObservableObject {
         self.now = now
     }
 
+    init(
+        previewDisks: [DiskInfo],
+        selectedDiskID: String? = nil,
+        lastRefresh: Date? = nil,
+        settings: AppSettings = .standard
+    ) {
+        self.scanner = PreviewScanner(disks: previewDisks)
+        self.history = PreviewHistoryStore()
+        self.notifications = nil
+        self.settings = settings.validated()
+        self.settingsStore = nil
+        self.notificationPolicy = NotificationPolicy()
+        self.now = Date.init
+        self.disks = previewDisks
+        self.selectedDiskID = selectedDiskID ?? previewDisks.first?.id
+        self.lastRefresh = lastRefresh
+    }
+
     public func selectDisk(id: String) {
         guard disks.contains(where: { $0.id == id }) else {
             return
@@ -152,4 +170,203 @@ public final class DiskMonitor: ObservableObject {
         }
         return "Unable to refresh disks: \(error.localizedDescription)"
     }
+}
+
+private final class PreviewScanner: DiskScanning {
+    private let disks: [DiskInfo]
+
+    init(disks: [DiskInfo]) {
+        self.disks = disks
+    }
+
+    func scan(policy: TemperaturePolicy) throws -> [DiskInfo] {
+        disks
+    }
+}
+
+private final class PreviewHistoryStore: HistoryStoring {
+    func append(_ sample: HistorySample, for diskID: String) throws {}
+    func samples(for diskID: String) throws -> [HistorySample] { [] }
+    func prune(now: Date) throws {}
+}
+
+extension DiskMonitor {
+    public static var live: DiskMonitor {
+        let settingsStore = SettingsStore()
+        return DiskMonitor(
+            scanner: DiskScanner(),
+            history: JSONHistoryStore(),
+            notifications: NotificationService(),
+            settings: settingsStore.load(),
+            settingsStore: settingsStore
+        )
+    }
+
+    public static var preview: DiskMonitor {
+        let disks = PreviewData.disks
+        return DiskMonitor(
+            previewDisks: disks,
+            selectedDiskID: disks.first?.id,
+            lastRefresh: PreviewData.timestamp
+        )
+    }
+}
+
+private enum PreviewData {
+    static let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
+    static let disks: [DiskInfo] = [appleSSD, intelSSD]
+
+    private static let appleSSD = DiskInfo(
+        id: "REDACTED|APPLE SSD AP0256Z",
+        bsdName: "disk0",
+        model: "APPLE SSD AP0256Z",
+        serial: "REDACTED",
+        firmware: "241.0.12",
+        protocolName: "NVMe",
+        interfaceName: "Apple Fabric",
+        capacityBytes: 251_000_193_024,
+        isInternal: true,
+        smartStatus: .passed,
+        health: .good,
+        temperatureCelsius: 36,
+        temperatureWarningCelsius: 50,
+        temperatureCriticalCelsius: 60,
+        lifePercent: 95,
+        powerOnHours: 1695,
+        powerCycleCount: 162,
+        unsafeShutdowns: 8,
+        mediaErrors: 0,
+        attributes: appleAttributes,
+        readError: nil
+    )
+
+    private static let intelSSD = DiskInfo(
+        id: "REDACTED|INTEL SSDPEKNW512G8",
+        bsdName: "disk4",
+        model: "INTEL SSDPEKNW512G8",
+        serial: "REDACTED",
+        firmware: "002C",
+        protocolName: "NVMe",
+        interfaceName: "PCI-Express",
+        capacityBytes: 512_110_190_592,
+        isInternal: false,
+        smartStatus: .passed,
+        health: .good,
+        temperatureCelsius: 41,
+        temperatureWarningCelsius: 77,
+        temperatureCriticalCelsius: 80,
+        lifePercent: 97,
+        powerOnHours: 12236,
+        powerCycleCount: 7292,
+        unsafeShutdowns: 103,
+        mediaErrors: 0,
+        attributes: intelAttributes,
+        readError: nil
+    )
+
+    private static let appleAttributes: [SmartAttribute] = [
+        SmartAttribute(
+            id: 1,
+            name: "Critical Warning",
+            current: nil,
+            worst: nil,
+            threshold: nil,
+            rawValue: 0,
+            rawString: "0x00",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 2,
+            name: "Temperature",
+            current: 36,
+            worst: nil,
+            threshold: nil,
+            rawValue: 36,
+            rawString: "36 °C",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 3,
+            name: "Available Spare",
+            current: 100,
+            worst: nil,
+            threshold: 99,
+            rawValue: 100,
+            rawString: "100%",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 5,
+            name: "Percentage Used",
+            current: 5,
+            worst: nil,
+            threshold: nil,
+            rawValue: 5,
+            rawString: "5%",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 12,
+            name: "Power On Hours",
+            current: nil,
+            worst: nil,
+            threshold: nil,
+            rawValue: 1695,
+            rawString: "1,695 h",
+            isPrefailure: false
+        )
+    ]
+
+    private static let intelAttributes: [SmartAttribute] = [
+        SmartAttribute(
+            id: 1,
+            name: "Critical Warning",
+            current: nil,
+            worst: nil,
+            threshold: nil,
+            rawValue: 0,
+            rawString: "0x00",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 2,
+            name: "Temperature",
+            current: 41,
+            worst: nil,
+            threshold: nil,
+            rawValue: 41,
+            rawString: "41 °C",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 3,
+            name: "Available Spare",
+            current: 100,
+            worst: nil,
+            threshold: 10,
+            rawValue: 100,
+            rawString: "100%",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 5,
+            name: "Percentage Used",
+            current: 3,
+            worst: nil,
+            threshold: nil,
+            rawValue: 3,
+            rawString: "3%",
+            isPrefailure: true
+        ),
+        SmartAttribute(
+            id: 12,
+            name: "Power On Hours",
+            current: nil,
+            worst: nil,
+            threshold: nil,
+            rawValue: 12236,
+            rawString: "12,236 h",
+            isPrefailure: false
+        )
+    ]
 }
