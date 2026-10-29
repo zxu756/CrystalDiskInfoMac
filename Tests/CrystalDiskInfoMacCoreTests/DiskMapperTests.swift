@@ -72,7 +72,12 @@ struct DiskMapperTests {
         #expect(info.attributes[2].threshold == 99)
         #expect(info.attributes[2].isPrefailure == true)
         #expect(info.attributes[4].rawString == "5%")
-        #expect(info.readError?.contains("Error Information Log") == true)
+        #expect(info.readError == nil)
+        #expect(info.diagnostics.contains { $0.contains("Error Information Log") })
+        #expect(info.diagnostics.contains { $0.contains("exit status: 4") })
+        #expect(info.healthReasons.isEmpty)
+        #expect(info.isStale == false)
+        #expect(info.consecutiveFailures == 0)
     }
 
     @Test func mapsExternalIntelNVMe() throws {
@@ -202,6 +207,7 @@ struct DiskMapperTests {
 
         #expect(info.health == .bad)
         #expect(info.attributes[0].isWarning == true)
+        #expect(info.healthReasons.contains { $0.contains("Spin_Retry_Count") })
     }
 
     @Test func ataPreferredLifeAttributeWins() throws {
@@ -244,6 +250,46 @@ struct DiskMapperTests {
         )
 
         #expect(info.lifePercent == 77)
+    }
+
+    @Test func mapsSCSIIdentity() throws {
+        let report = try report([
+            "scsi_model_name": "SAS Disk",
+            "scsi_serial_number": "SAS-1",
+            "smart_status": ["passed": true]
+        ])
+
+        let info = DiskMapper.map(candidate: disk4Candidate(), report: report)
+
+        #expect(info.id == "SAS-1|SAS Disk")
+        #expect(info.model == "SAS Disk")
+        #expect(info.serial == "SAS-1")
+        #expect(info.health == .good)
+        #expect(info.readError == nil)
+    }
+
+    @Test func mediaErrorsExposeHealthReason() throws {
+        let report = try report([
+            "model_name": "Media NVMe",
+            "serial_number": "MEDIA-1",
+            "smart_status": ["passed": true],
+            "temperature": ["current": 40],
+            "nvme_smart_health_information_log": [
+                "critical_warning": 0,
+                "temperature": 40,
+                "available_spare": 100,
+                "available_spare_threshold": 10,
+                "percentage_used": 3,
+                "media_errors": 3
+            ]
+        ])
+
+        let info = DiskMapper.map(candidate: disk4Candidate(), report: report)
+
+        #expect(info.health == .caution)
+        #expect(info.mediaErrors == 3)
+        #expect(info.healthReasons.contains { $0.contains("Media errors") })
+        #expect(info.readError == nil)
     }
 
     @Test func reportCapacityWinsOverCandidateCapacity() throws {

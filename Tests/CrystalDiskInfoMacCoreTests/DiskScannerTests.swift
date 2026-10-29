@@ -54,6 +54,20 @@ struct DiskScannerTests {
         }
     }
 
+    private final class OldRunner: SmartctlRunning {
+        func discover() throws -> URL {
+            URL(fileURLWithPath: "/fake/smartctl")
+        }
+
+        func version() throws -> String {
+            throw SmartctlError.unsupportedVersion("7.3")
+        }
+
+        func read(bsdName: String) throws -> SmartctlResult {
+            throw SmartctlError.unsupportedVersion("7.3")
+        }
+    }
+
     private func candidate(
         _ bsdName: String,
         isInternal: Bool,
@@ -133,8 +147,11 @@ struct DiskScannerTests {
         #expect(disks.count == 2)
         #expect(disks[0].health == .good)
         #expect(disks[1].health == .unknown)
+        #expect(disks[1].isStale == true)
+        #expect(disks[1].consecutiveFailures == 1)
         #expect(disks[1].readError?.contains("Permission denied") == true)
         #expect(disks[1].readError?.contains("Full Disk Access") == true)
+        #expect(disks[1].healthReasons.contains { $0.contains("Permission denied") })
     }
 
     @Test func setupFailurePropagatesInsteadOfHidingAllDisks() throws {
@@ -209,5 +226,14 @@ struct DiskScannerTests {
         )
 
         #expect(scanner.smartctlStatus() == .notInstalled)
+    }
+
+    @Test func reportsUnsupportedSmartctlStatus() {
+        let scanner = DiskScanner(
+            lister: FakeLister(candidates: []),
+            runner: OldRunner()
+        )
+
+        #expect(scanner.smartctlStatus() == .unsupported(version: "7.3"))
     }
 }

@@ -31,7 +31,11 @@ enum TestFixtures {
         unsafeShutdowns: Int? = 1,
         mediaErrors: Int? = 0,
         attributes: [SmartAttribute] = [],
-        readError: String? = nil
+        readError: String? = nil,
+        isStale: Bool = false,
+        consecutiveFailures: Int = 0,
+        healthReasons: [String] = [],
+        diagnostics: [String] = []
     ) -> DiskInfo {
         DiskInfo(
             id: id,
@@ -54,7 +58,11 @@ enum TestFixtures {
             unsafeShutdowns: unsafeShutdowns,
             mediaErrors: mediaErrors,
             attributes: attributes,
-            readError: readError
+            readError: readError,
+            isStale: isStale,
+            consecutiveFailures: consecutiveFailures,
+            healthReasons: healthReasons,
+            diagnostics: diagnostics
         )
     }
 }

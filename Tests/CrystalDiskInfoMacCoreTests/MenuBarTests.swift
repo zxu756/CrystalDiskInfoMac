@@ -6,6 +6,7 @@ import UserNotifications
 
 struct MenuBarTests {
     private final class FakeNotificationCenter: UserNotificationCentering, @unchecked Sendable {
+        var delegate: UNUserNotificationCenterDelegate?
         var authorizationRequests = 0
         var requests: [UNNotificationRequest] = []
 
@@ -103,6 +104,7 @@ struct MenuBarTests {
 
         #expect(center.authorizationRequests == 1)
         #expect(center.requests.count == 2)
+        #expect(center.delegate != nil)
         #expect(center.requests.first?.content.title == "Test Disk health changed")
         #expect(center.requests.first?.content.body == "Health changed from Good to Bad.")
         #expect(center.requests.first?.content.sound != nil)

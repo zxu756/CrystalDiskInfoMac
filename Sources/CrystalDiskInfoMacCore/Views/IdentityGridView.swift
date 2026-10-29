@@ -31,6 +31,23 @@ struct IdentityGridView: View {
                     field("Media errors", disk.mediaErrors.map(String.init) ?? "—")
                 }
             }
+
+            if !disk.diagnostics.isEmpty {
+                DisclosureGroup("Diagnostics (\(disk.diagnostics.count))") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(disk.diagnostics.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -11,7 +11,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool
 
     public init(
-        refreshMinutes: Int = 5,
+        refreshMinutes: Int = 10,
         temperaturePolicy: TemperaturePolicy = .standard,
         showMenuBarTemperature: Bool = false,
         notificationsEnabled: Bool = true,
@@ -30,7 +30,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         var result = self
 
         if !Self.allowedRefreshMinutes.contains(refreshMinutes) {
-            result.refreshMinutes = 5
+            result.refreshMinutes = 10
         }
 
         let warning = temperaturePolicy.warningCelsius

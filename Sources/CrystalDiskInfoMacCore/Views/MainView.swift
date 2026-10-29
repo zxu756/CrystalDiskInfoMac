@@ -28,6 +28,11 @@ public struct MainView: View {
                             .stroke(Theme.caution.opacity(0.35))
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else if case .unsupported(let version) = model.smartctlStatus {
+                    errorBanner(
+                        "smartctl \(version) is too old. Upgrade with: brew upgrade smartmontools",
+                        style: .warning
+                    )
                 } else if let error = model.errorMessage {
                     errorBanner(error, style: .warning)
                 } else if let disk = model.selectedDisk, let readError = disk.readError {

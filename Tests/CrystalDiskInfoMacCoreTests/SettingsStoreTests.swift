@@ -51,7 +51,7 @@ struct SettingsStoreTests {
         store.save(invalid)
 
         let loaded = store.load()
-        #expect(loaded.refreshMinutes == 5)
+        #expect(loaded.refreshMinutes == 10)
         #expect(loaded.temperaturePolicy.warningCelsius == 50)
         #expect(loaded.temperaturePolicy.criticalCelsius == 60)
         #expect(loaded.temperaturePolicy.useDriveLimits == true)

@@ -4,6 +4,7 @@ public struct DiskNotification: Equatable, Sendable {
     public enum Kind: String, Equatable, Sendable {
         case health
         case temperature
+        case mediaErrors
         case unknown
         case removed
     }
@@ -49,6 +50,7 @@ public final class NotificationPolicy {
         var name: String
         var health: HealthStatus
         var temperatureBand: TemperatureBand
+        var mediaErrors: Int? = nil
         var unknownCount = 0
         var unknownNotified = false
         var missingCount = 0
@@ -79,7 +81,8 @@ public final class NotificationPolicy {
 
                 if disk.health == .unknown {
                     state.unknownCount += 1
-                    if state.unknownCount == 2, !state.unknownNotified {
+                    let reachedFailureGrace = disk.consecutiveFailures >= 2
+                    if (state.unknownCount == 2 || reachedFailureGrace), !state.unknownNotified {
                         state.unknownNotified = true
                         if notificationsEnabled {
                             notifications.append(unknownNotification(for: disk))
@@ -99,6 +102,21 @@ public final class NotificationPolicy {
                     }
                 }
 
+                if let mediaErrors = disk.mediaErrors {
+                    if let previousErrors = state.mediaErrors,
+                       mediaErrors > previousErrors,
+                       notificationsEnabled {
+                        notifications.append(
+                            mediaErrorNotification(
+                                for: disk,
+                                previous: previousErrors,
+                                current: mediaErrors
+                            )
+                        )
+                    }
+                    state.mediaErrors = mediaErrors
+                }
+
                 if notificationsEnabled,
                    let band,
                    band > state.temperatureBand {
@@ -116,6 +134,7 @@ public final class NotificationPolicy {
                     health: disk.health,
                     temperatureBand: band ?? .normal
                 )
+                state.mediaErrors = disk.mediaErrors
                 if disk.health == .unknown {
                     state.unknownCount = 1
                 }
@@ -180,6 +199,20 @@ public final class NotificationPolicy {
             diskName: disk.model,
             title: "\(disk.model) temperature \(isCritical ? "critical" : "warning")",
             body: "Temperature is \(temperature) °C; the \(isCritical ? "critical" : "warning") limit is \(limit) °C."
+        )
+    }
+
+    private func mediaErrorNotification(
+        for disk: DiskInfo,
+        previous: Int,
+        current: Int
+    ) -> DiskNotification {
+        DiskNotification(
+            kind: .mediaErrors,
+            diskID: disk.id,
+            diskName: disk.model,
+            title: "\(disk.model) media errors increased",
+            body: "Media errors increased from \(previous) to \(current)."
         )
     }
 

@@ -14,6 +14,10 @@ public struct SmartctlReport: Codable, Sendable {
     public let modelFamily: String?
     public let serialNumber: String?
     public let firmwareVersion: String?
+    public let scsiModelName: String?
+    public let scsiSerialNumber: String?
+    public let scsiVendor: String?
+    public let scsiProduct: String?
     public let userCapacity: SmartctlCapacity?
     public let rotationRate: Int?
     public let smartStatus: SmartctlStatus?
@@ -36,6 +40,10 @@ public struct SmartctlReport: Codable, Sendable {
         case modelFamily = "model_family"
         case serialNumber = "serial_number"
         case firmwareVersion = "firmware_version"
+        case scsiModelName = "scsi_model_name"
+        case scsiSerialNumber = "scsi_serial_number"
+        case scsiVendor = "scsi_vendor"
+        case scsiProduct = "scsi_product"
         case userCapacity = "user_capacity"
         case rotationRate = "rotation_rate"
         case smartStatus = "smart_status"

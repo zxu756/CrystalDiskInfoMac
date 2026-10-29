@@ -67,6 +67,10 @@ public struct DiskInfo: Identifiable, Equatable, Sendable {
     public let mediaErrors: Int?
     public let attributes: [SmartAttribute]
     public let readError: String?
+    public let isStale: Bool
+    public let consecutiveFailures: Int
+    public let healthReasons: [String]
+    public let diagnostics: [String]
 
     public init(
         id: String,
@@ -89,7 +93,11 @@ public struct DiskInfo: Identifiable, Equatable, Sendable {
         unsafeShutdowns: Int?,
         mediaErrors: Int?,
         attributes: [SmartAttribute],
-        readError: String?
+        readError: String?,
+        isStale: Bool = false,
+        consecutiveFailures: Int = 0,
+        healthReasons: [String] = [],
+        diagnostics: [String] = []
     ) {
         self.id = id
         self.bsdName = bsdName
@@ -112,5 +120,9 @@ public struct DiskInfo: Identifiable, Equatable, Sendable {
         self.mediaErrors = mediaErrors
         self.attributes = attributes
         self.readError = readError
+        self.isStale = isStale
+        self.consecutiveFailures = consecutiveFailures
+        self.healthReasons = healthReasons
+        self.diagnostics = diagnostics
     }
 }

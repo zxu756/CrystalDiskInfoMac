@@ -7,8 +7,11 @@ public enum DiskMapper {
         policy: TemperaturePolicy = .standard
     ) -> DiskInfo {
         let evaluation = HealthEvaluator.evaluate(report: report, policy: policy)
-        let model = nonEmpty(report.modelName) ?? candidate.mediaName
+        let model = nonEmpty(report.modelName)
+            ?? nonEmpty(report.scsiModelName)
+            ?? candidate.mediaName
         let serial = nonEmpty(report.serialNumber)
+            ?? nonEmpty(report.scsiSerialNumber)
         let firmware = nonEmpty(report.firmwareVersion) ?? "Unknown"
         let stableID = serial.map { "\($0)|\(model)" } ?? candidate.bsdName
 
@@ -26,6 +29,7 @@ public enum DiskMapper {
         let powerCycleCount = intValue(
             report.powerCycleCount ?? report.nvmeSmartHealthInformationLog?.powerCycles
         )
+        let reasonText = evaluation.reasons.joined(separator: " ")
 
         return DiskInfo(
             id: stableID,
@@ -48,7 +52,11 @@ public enum DiskMapper {
             unsafeShutdowns: intValue(report.nvmeSmartHealthInformationLog?.unsafeShutdowns),
             mediaErrors: intValue(report.nvmeSmartHealthInformationLog?.mediaErrors),
             attributes: attributes(report),
-            readError: readError(report: report, evaluation: evaluation)
+            readError: evaluation.status == .unknown
+                ? (reasonText.isEmpty ? "SMART data is unavailable." : reasonText)
+                : nil,
+            healthReasons: evaluation.reasons,
+            diagnostics: diagnostics(report)
         )
     }
 
@@ -81,7 +89,10 @@ public enum DiskMapper {
             unsafeShutdowns: nil,
             mediaErrors: nil,
             attributes: [],
-            readError: error
+            readError: error,
+            isStale: true,
+            consecutiveFailures: 1,
+            healthReasons: [error]
         )
     }
 
@@ -213,30 +224,20 @@ public enum DiskMapper {
         }
     }
 
-    private static func readError(
-        report: SmartctlReport,
-        evaluation: HealthEvaluation
-    ) -> String? {
-        let diagnostics = (report.smartctl?.messages ?? []).compactMap { message -> String? in
-            guard let text = nonEmpty(message.string) else { return nil }
-            switch message.severity?.lowercased() {
-            case "error", "critical":
-                return "smartctl: \(text)"
-            default:
-                return nil
-            }
+    private static func diagnostics(_ report: SmartctlReport) -> [String] {
+        var result: [String] = []
+
+        for message in report.smartctl?.messages ?? [] {
+            guard let text = nonEmpty(message.string) else { continue }
+            let severity = message.severity?.lowercased() ?? "info"
+            result.append("\(severity): \(text)")
         }
 
-        if !diagnostics.isEmpty {
-            return diagnostics.joined(separator: "\n")
+        if let exitStatus = report.smartctl?.exitStatus, exitStatus != 0 {
+            result.append("smartctl exit status: \(exitStatus)")
         }
 
-        if evaluation.status == .unknown {
-            let reasons = evaluation.reasons.joined(separator: " ")
-            return reasons.isEmpty ? "SMART data is unavailable." : reasons
-        }
-
-        return nil
+        return result
     }
 
     private static func rawUnsigned(_ attribute: AtaSmartAttribute) -> UInt64? {

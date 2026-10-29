@@ -160,6 +160,16 @@ struct HealthEvaluatorTests {
         #expect(bad.status == .bad)
     }
 
+    @Test func partialDriveLimitsFallBackToGlobalPair() throws {
+        let evaluation = HealthEvaluator.evaluate(
+            report: try nvmeReport(temperature: 65, opLimit: 77, criticalLimit: nil)
+        )
+
+        #expect(evaluation.effectiveWarning == 50)
+        #expect(evaluation.effectiveCritical == 60)
+        #expect(evaluation.status == .bad)
+    }
+
     @Test func globalPolicyOverridesDriveLimits() throws {
         let policy = TemperaturePolicy(useDriveLimits: false, warningCelsius: 50, criticalCelsius: 60)
 
@@ -202,6 +212,24 @@ struct HealthEvaluatorTests {
 
         #expect(evaluation.temperatureCelsius == 65)
         #expect(evaluation.status == .bad)
+    }
+
+    @Test func ataNormalizedValueIsNotUsedAsTemperature() throws {
+        let attribute: [String: Any] = [
+            "id": 194,
+            "name": "Temperature_Celsius",
+            "value": 100,
+            "worst": 100,
+            "thresh": 0,
+            "flags": ["prefailure": false]
+        ]
+
+        let evaluation = HealthEvaluator.evaluate(
+            report: try ataReport(attributes: [attribute])
+        )
+
+        #expect(evaluation.temperatureCelsius == nil)
+        #expect(evaluation.status == .good)
     }
 
     @Test func ataPrefailureAtThresholdIsBad() throws {

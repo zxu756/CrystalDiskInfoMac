@@ -36,6 +36,12 @@ struct StatusCardsView: View {
     }
 
     private var healthSubtitle: String {
+        if disk.isStale {
+            return "Last refresh failed — showing last known data"
+        }
+        if let reason = disk.healthReasons.first {
+            return reason
+        }
         switch disk.health {
         case .good:
             return disk.smartStatus == .passed

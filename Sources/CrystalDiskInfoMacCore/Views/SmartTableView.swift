@@ -9,7 +9,21 @@ public struct SmartTableRow: Identifiable, Equatable, Sendable {
     public var currentDisplay: String { display(attribute.current) }
     public var worstDisplay: String { display(attribute.worst) }
     public var thresholdDisplay: String { display(attribute.threshold) }
-    public var isWarning: Bool { attribute.isWarning }
+    public var isWarning: Bool {
+        if attribute.isWarning {
+            return true
+        }
+        switch attribute.name {
+        case "Critical Warning":
+            return (attribute.rawValue ?? 0) != 0
+        case "Percentage Used":
+            return (attribute.current ?? 0) >= 90
+        case "Media Errors":
+            return (attribute.rawValue ?? 0) > 0
+        default:
+            return false
+        }
+    }
 
     public var rawDisplay: String {
         if let rawString = attribute.rawString,
