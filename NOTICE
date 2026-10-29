@@ -1,0 +1,16 @@
+CrystalDiskInfo Mac
+
+This project is a macOS reimplementation inspired by CrystalDiskInfo.
+
+CrystalDiskInfo
+Copyright (C) 2007-2026 hiyohiyo
+License: MIT
+https://crystalmark.info/
+
+smartmontools / smartctl
+License: GPL-2.0-or-later
+https://www.smartmontools.org/
+
+smartctl is used as a separately installed executable and is not bundled
+with this app. This project is not affiliated with CrystalMark or the
+smartmontools project.
