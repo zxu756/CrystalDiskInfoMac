@@ -10,7 +10,7 @@ let testSwiftSettings: [SwiftSetting] = FileManager.default.fileExists(atPath: c
 let package = Package(
     name: "CrystalDiskInfoMac",
     platforms: [
-        .macOS("27.0")
+        .macOS("14.0")
     ],
     products: [
         .library(name: "CrystalDiskInfoMacCore", targets: ["CrystalDiskInfoMacCore"]),
