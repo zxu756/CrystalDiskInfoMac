@@ -7,6 +7,8 @@ physical disks, reads SMART data through `smartctl`, and shows health,
 temperature, remaining life, identity, SMART attributes, history, menu-bar
 status, and alerts.
 
+![CrystalDiskInfo Mac Screenshot](docs/screenshot.png)
+
 ## Features
 
 - Physical-disk discovery through `diskutil`; APFS synthesized volumes and disk
@@ -37,6 +39,12 @@ The app checks `/opt/homebrew/bin/smartctl`, `/usr/local/bin/smartctl`,
 `/usr/bin/smartctl`, then `PATH`. `smartctl` is not bundled.
 
 ## Download or build
+
+### Homebrew Cask (Recommended)
+
+```sh
+brew install --cask zxu756/tap/crystaldiskinfo-mac
+```
 
 ### Prebuilt release
 
