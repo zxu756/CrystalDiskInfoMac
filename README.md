@@ -1,5 +1,7 @@
 # CrystalDiskInfo Mac
 
+> **Unofficial native macOS port** inspired by [CrystalDiskInfo](https://crystalmark.info/) (MIT, hiyohiyo). Not affiliated with or endorsed by CrystalMark.
+
 A native macOS disk-health app inspired by CrystalDiskInfo. It discovers local
 physical disks, reads SMART data through `smartctl`, and shows health,
 temperature, remaining life, identity, SMART attributes, history, menu-bar
@@ -24,7 +26,7 @@ status, and alerts.
 
 ## Requirements
 
-- macOS 27 or later, arm64.
+- macOS 14 (Sonoma) or later, Apple Silicon (`arm64`).
 - `smartctl` 7.4 or later, installed separately:
 
 ```sh
@@ -34,7 +36,17 @@ brew install smartmontools
 The app checks `/opt/homebrew/bin/smartctl`, `/usr/local/bin/smartctl`,
 `/usr/bin/smartctl`, then `PATH`. `smartctl` is not bundled.
 
-## Build and run
+## Download or build
+
+### Prebuilt release
+
+Download `CrystalDiskInfoMac-v0.1.0-macos-arm64.zip` from [Releases](https://github.com/zxu756/CrystalDiskInfoMac/releases), move `CrystalDiskInfoMac.app` to `/Applications`, and clear the quarantine attribute before first launch (ad-hoc signed, not notarized):
+
+```sh
+xattr -cr /Applications/CrystalDiskInfoMac.app
+```
+
+### Build from source
 
 ```sh
 swift test
